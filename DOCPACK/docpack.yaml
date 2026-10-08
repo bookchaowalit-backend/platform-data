@@ -1,0 +1,8 @@
+system_id: bookchaowalit-backend/book-backend/book-data-platform
+prefix: CARD
+brand: "BOOK DATA PLATFORM"
+subtitle: "ขอบเขต contract ของ platform `data` ยังไม่มี runtime"
+footer: "Book Data Platform — Product Card"
+color: "#2f4b6e"
+audience: internal
+tier: L0
