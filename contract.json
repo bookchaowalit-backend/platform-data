@@ -2,10 +2,10 @@
   "$schema": "./schema/book-platform.contract.v1.schema.json",
   "schema_version": "book-platform.contract.v1",
   "platform_id": "data",
-  "repository": "book-data-platform",
+  "repository": "platform-data",
   "status": "scaffolded",
   "api_version": "v1",
-  "data_owner": "book-data-platform",
+  "data_owner": "platform-data",
   "capabilities": [
     "event-ingress",
     "lake-contract",
