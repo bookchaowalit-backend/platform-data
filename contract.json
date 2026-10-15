@@ -3,7 +3,7 @@
   "schema_version": "book-platform.contract.v1",
   "platform_id": "data",
   "repository": "platform-data",
-  "status": "scaffolded",
+  "status": "pilot",
   "api_version": "v1",
   "data_owner": "platform-data",
   "capabilities": [
@@ -11,20 +11,23 @@
     "lake-contract",
     "query",
     "analytics",
-    "lineage"
+    "lineage",
+    "workspace-cache",
+    "atomic-counters",
+    "document-search",
+    "quota-reservations"
   ],
   "depends_on": [
     "security",
     "observability"
   ],
   "current_implementation": {
-    "repository": "solo-empire",
-    "source_path": "infra/scripts/data_lake",
+    "repository": "platform-data",
+    "source_path": "src/platform_data",
     "source_paths": [
-      "infra/scripts/data_lake",
-      "systems/ai-data/data-lake-architecture.md"
+      "src/platform_data"
     ],
-    "source_status": "current-implementation-in-solo-empire"
+    "source_status": "implemented-in-this-repository"
   },
   "migration": {
     "compatibility_adapter": "required",
@@ -78,6 +81,69 @@
       "name": "control/checkpoints/source=<source>/batch_id=<id>.json",
       "status": "current-in-solo-empire",
       "source": "infra/scripts/data_lake/ingest.py"
+    },
+    {
+      "id": "data.http.cache",
+      "kind": "http",
+      "direction": "provides",
+      "name": "/v1/cache/{key}",
+      "status": "pilot",
+      "source": "src/platform_data/app.py",
+      "auth": "Verified workspace JWT; cache:read cache:write"
+    },
+    {
+      "id": "data.http.counters",
+      "kind": "http",
+      "direction": "provides",
+      "name": "/v1/counters/{key}/increment",
+      "status": "pilot",
+      "source": "src/platform_data/app.py",
+      "auth": "Verified workspace JWT; counters:write"
+    },
+    {
+      "id": "data.http.documents",
+      "kind": "http",
+      "direction": "provides",
+      "name": "/v1/documents",
+      "status": "pilot",
+      "source": "src/platform_data/app.py",
+      "auth": "Verified workspace JWT; documents:read documents:write"
+    },
+    {
+      "id": "data.http.quotas",
+      "kind": "http",
+      "direction": "provides",
+      "name": "PUT /v1/quotas/{key}",
+      "status": "pilot",
+      "source": "src/platform_data/app.py",
+      "auth": "Verified workspace JWT; quotas:write"
+    },
+    {
+      "id": "data.http.reservations",
+      "kind": "http",
+      "direction": "provides",
+      "name": "POST /v1/reservations",
+      "status": "pilot",
+      "source": "src/platform_data/app.py",
+      "auth": "Verified workspace JWT; quotas:reserve"
+    },
+    {
+      "id": "data.http.settle",
+      "kind": "http",
+      "direction": "provides",
+      "name": "POST /v1/reservations/{id}/settle",
+      "status": "pilot",
+      "source": "src/platform_data/app.py",
+      "auth": "Verified workspace JWT; quotas:settle"
+    },
+    {
+      "id": "data.http.release",
+      "kind": "http",
+      "direction": "provides",
+      "name": "POST /v1/reservations/{id}/release",
+      "status": "pilot",
+      "source": "src/platform_data/app.py",
+      "auth": "Verified workspace JWT; quotas:settle"
     }
   ]
 }
