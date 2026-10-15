@@ -41,3 +41,28 @@ USING (workspace_id = nullif(current_setting('app.workspace_id',true),'')::uuid)
 WITH CHECK (workspace_id = nullif(current_setting('app.workspace_id',true),'')::uuid);
 ''' for table in ('data_cache','data_counters','data_documents','data_quota_policies','data_quota_buckets','data_reservations'))
 MIGRATIONS = (Migration('001_data_primitives', _TABLES + _RLS),)
+
+_SERVICE_ADMISSIONS = '''
+CREATE TABLE data_service_admissions (
+ workspace_id uuid NOT NULL, id uuid NOT NULL,
+ service_workspace uuid NOT NULL, service_actor uuid NOT NULL, caller_actor uuid NOT NULL,
+ policy text NOT NULL, global_policy text NOT NULL,
+ units bigint NOT NULL CHECK(units>0), ttl_seconds integer NOT NULL,
+ idempotency_key text NOT NULL,
+ global_reservation_id uuid, tenant_reservation_id uuid,
+ status text NOT NULL DEFAULT 'preparing'
+ CHECK(status IN ('preparing','pending','expired','settled','released')),
+ operation text CHECK(operation IN ('settle','release')),
+ actual_units bigint CHECK(actual_units>=0),
+ expires_at timestamptz, available_units bigint,
+ PRIMARY KEY(workspace_id,id), UNIQUE(workspace_id,idempotency_key),
+ FOREIGN KEY(service_workspace,global_reservation_id) REFERENCES data_reservations(workspace_id,id),
+ FOREIGN KEY(workspace_id,tenant_reservation_id) REFERENCES data_reservations(workspace_id,id));
+ALTER TABLE data_service_admissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE data_service_admissions FORCE ROW LEVEL SECURITY;
+CREATE POLICY workspace_isolation ON data_service_admissions
+USING (workspace_id = nullif(current_setting('app.workspace_id',true),'')::uuid)
+WITH CHECK (workspace_id = nullif(current_setting('app.workspace_id',true),'')::uuid);
+'''
+# Migration 001 remains byte-for-byte unchanged; upgrades append immutable history.
+MIGRATIONS += (Migration('002_service_admissions', _SERVICE_ADMISSIONS),)

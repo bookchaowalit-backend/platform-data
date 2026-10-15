@@ -23,7 +23,9 @@ pipeline parity and legacy state migration remain separate work. Legacy
 
 Only versioned APIs cross service boundaries. This service has no runtime
 hub imports, legacy lake writer, provider SDK, credential discovery or paid
-service calls. Signed JWT `ws` is the only workspace authority.
+service calls. Signed JWT `ws` is the only workspace authority. Composite service admission
+verifies a separate caller JWT and charges both global and tenant policies;
+see the runtime guide for explicit `PLATFORM_SYSTEM_WORKSPACE_ID` setup.
 
 ## Local verification
 
@@ -54,7 +56,7 @@ retains the lake compatibility interfaces.
 ## Migration gate
 
 Migrations run explicitly with a separate DDL role; startup never migrates.
-Missing/drifted migrations yield readiness 503. All six tenant tables use
+Missing/drifted migrations yield readiness 503. All seven tenant tables use
 FORCE RLS with USING/WITH CHECK and workspace-leading primary indexes.
 Runtime roles must be NOSUPERUSER NOBYPASSRLS. Independent replicas coordinate
 through PostgreSQL locks and persistent reservations. This evidence does not

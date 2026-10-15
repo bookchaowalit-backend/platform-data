@@ -144,6 +144,33 @@
       "status": "pilot",
       "source": "src/platform_data/app.py",
       "auth": "Verified workspace JWT; quotas:settle"
+    },
+    {
+      "id": "data.http.service-admissions",
+      "kind": "http",
+      "direction": "provides",
+      "name": "POST /v1/service/admissions",
+      "status": "pilot",
+      "source": "src/platform_data/service_admissions.py",
+      "auth": "Service JWT quotas:service in configured system workspace plus independently verified caller JWT ai:generate"
+    },
+    {
+      "id": "data.http.service-settle",
+      "kind": "http",
+      "direction": "provides",
+      "name": "POST /v1/service/admissions/{id}/settle",
+      "status": "pilot",
+      "source": "src/platform_data/service_admissions.py",
+      "auth": "Service JWT quotas:service in configured system workspace plus independently verified caller JWT ai:generate"
+    },
+    {
+      "id": "data.http.service-release",
+      "kind": "http",
+      "direction": "provides",
+      "name": "POST /v1/service/admissions/{id}/release",
+      "status": "pilot",
+      "source": "src/platform_data/service_admissions.py",
+      "auth": "Service JWT quotas:service in configured system workspace plus independently verified caller JWT ai:generate"
     }
   ]
 }

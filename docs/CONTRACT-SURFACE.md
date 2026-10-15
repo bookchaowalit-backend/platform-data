@@ -72,3 +72,15 @@ unchanged and are not served by this package.
 | `data.http.reservations` | POST `/v1/reservations` | pilot |
 | `data.http.settle` | POST `/v1/reservations/{id}/settle` | pilot |
 | `data.http.release` | POST `/v1/reservations/{id}/release` | pilot |
+
+## Composite trusted service boundary
+
+| ID | Interface | Status |
+|---|---|---|
+| `data.http.service-admissions` | POST `/v1/service/admissions` | pilot |
+| `data.http.service-settle` | POST `/v1/service/admissions/{id}/settle` | pilot |
+| `data.http.service-release` | POST `/v1/service/admissions/{id}/release` | pilot |
+
+These routes require a system-workspace service JWT and a separately verified
+caller JWT. [runtime.md](runtime.md) defines the frozen envelope and conservative
+two-phase recovery. No unsigned workspace selection is supported.

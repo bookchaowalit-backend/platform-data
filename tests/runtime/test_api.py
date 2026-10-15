@@ -21,16 +21,16 @@ SCOPES = 'cache:read cache:write counters:write documents:read documents:write q
 def runtime():
     admin = os.environ['PLATFORM_TEST_DSN']  # fail rather than silently skip
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    verifier = TokenVerifier(issuer='local-test', audience='data', public_key=key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+    verifier = TokenVerifier(issuer='local-test', audience='platform-api', public_key=key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
     with temporary_database(admin, prefix='data_test_') as test:
         MigrationRunner(test.admin_dsn, namespace='data').apply(MIGRATIONS)
         test.grant_schema('public')
         db = Database(test.runtime_dsn, max_size=16)
         app = create_app(db, verifier)
         with TestClient(app) as client:
-            def headers(ws, scopes=SCOPES):
+            def headers(ws, scopes=SCOPES, actor=None):
                 now = int(time.time())
-                token = jwt.encode(dict(iss='local-test', aud='data', sub=str(uuid4()), ws=str(ws), iat=now, exp=now+300, jti=str(uuid4()), scope=scopes), key, algorithm='RS256')
+                token = jwt.encode(dict(iss='local-test', aud='platform-api', sub=str(actor or uuid4()), ws=str(ws), iat=now, exp=now+300, jti=str(uuid4()), scope=scopes), key, algorithm='RS256')
                 return {'Authorization': 'Bearer '+token}
             yield client, headers(uuid4()), headers(uuid4()), db, test, verifier, headers
 
@@ -165,7 +165,7 @@ def test_missing_migration_readiness(runtime):
 
 def process_reserves(args):
     dsn,public_key,auth,index=args
-    verifier=TokenVerifier(issuer='local-test',audience='data',public_key=public_key)
+    verifier=TokenVerifier(issuer='local-test',audience='platform-api',public_key=public_key)
     with TestClient(create_app(Database(dsn,max_size=2),verifier)) as client:
         return [reserve(client,auth,key=f'process-{index}-{i}',units=1).status_code for i in range(10)]
 
@@ -179,9 +179,9 @@ def test_independent_processes_share_capacity(runtime):
     pem=key.public_key().public_bytes(serialization.Encoding.PEM,serialization.PublicFormat.SubjectPublicKeyInfo)
     now=int(time.time())
     workspace=uuid4()
-    token=jwt.encode(dict(iss='local-test',aud='data',sub=str(uuid4()),ws=str(workspace),iat=now,exp=now+300,jti=str(uuid4()),scope=SCOPES),key,algorithm='RS256')
+    token=jwt.encode(dict(iss='local-test',aud='platform-api',sub=str(uuid4()),ws=str(workspace),iat=now,exp=now+300,jti=str(uuid4()),scope=SCOPES),key,algorithm='RS256')
     auth={'Authorization':'Bearer '+token}
-    verifier=TokenVerifier(issuer='local-test',audience='data',public_key=pem)
+    verifier=TokenVerifier(issuer='local-test',audience='platform-api',public_key=pem)
     with TestClient(create_app(Database(t.runtime_dsn),verifier)) as setup:
         put_policy(setup,auth,limit=13)
     with ProcessPoolExecutor(max_workers=4,mp_context=multiprocessing.get_context('spawn')) as pool:
@@ -233,7 +233,7 @@ def test_runtime_role_force_rls_and_cross_workspace_write(runtime):
         role=conn.execute('SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user').fetchone()
         assert role==(False,False)
         tables=conn.execute("SELECT relname,relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname LIKE 'data_%' AND relkind='r'").fetchall()
-        assert len(tables)==6 and all(enabled and forced for _,enabled,forced in tables)
+        assert len(tables)==7 and all(enabled and forced for _,enabled,forced in tables)
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             conn.execute("INSERT INTO data_cache VALUES(%s,'foreign','{}',clock_timestamp()+interval '1 hour')",(uuid4(),))
     # Failed writes roll back and do not poison the pool.

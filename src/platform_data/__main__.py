@@ -1,6 +1,7 @@
 """Explicit setup and bounded HTTP server; never auto-migrate at startup."""
 import argparse
 import os
+from uuid import UUID
 
 from platform_backend_core import Database, MigrationRunner, TokenVerifier
 from .app import create_app
@@ -30,7 +31,8 @@ def main():
         if not 1 <= port <= 65535:
             raise ValueError('invalid port')
         import uvicorn
-        app = create_app(Database(dsn), verifier)
+        system = os.environ.get('PLATFORM_SYSTEM_WORKSPACE_ID')
+        app = create_app(Database(dsn), verifier, system_workspace=UUID(system) if system else None)
     except Exception:
         parser.exit(1, 'data configuration or migration failed; inspect trusted configuration and database history\n')
     uvicorn.run(app, host='0.0.0.0', port=port, access_log=False,

@@ -115,7 +115,9 @@ def expire(conn, row):
     return row
 
 
-def create_app(database: Database, verifier: TokenVerifier):
+def create_app(database: Database, verifier: TokenVerifier, *, system_workspace: UUID | None = None):
+    if system_workspace is not None and not isinstance(system_workspace, UUID):
+        raise ValueError("system_workspace must be a UUID")
     app=core_app('platform-data',database,verifier,max_body_bytes=1048576)
 
     def schema_ready():
@@ -123,8 +125,16 @@ def create_app(database: Database, verifier: TokenVerifier):
             # Shared migration history contains release metadata, never tenant data.
             history = dict(conn.execute('SELECT version,checksum FROM platform_schema_migrations WHERE namespace=%s', ('data',)).fetchall())
             expected = {migration.version: migration.checksum for migration in MIGRATIONS}
-            tables = ('data_cache', 'data_counters', 'data_documents', 'data_quota_policies', 'data_quota_buckets', 'data_reservations')
-            return history == expected and all(one(conn, 'SELECT to_regclass(%s) IS NOT NULL AS ok', ('public.' + table,))['ok'] for table in tables)
+            tables = ('data_cache', 'data_counters', 'data_documents', 'data_quota_policies', 'data_quota_buckets', 'data_reservations', 'data_service_admissions')
+            if history != expected:
+                return False
+            for table in tables:
+                if not one(conn, 'SELECT to_regclass(%s) IS NOT NULL AS ok', ('public.' + table,))['ok']:
+                    return False
+                for privilege in ('SELECT', 'INSERT', 'UPDATE', 'DELETE'):
+                    if not one(conn, 'SELECT has_table_privilege(%s,%s) AS ok', ('public.' + table, privilege))['ok']:
+                        return False
+            return one(conn, "SELECT has_schema_privilege('public','USAGE') AS ok")['ok']
     app.state.readiness_checks['data_schema']=schema_ready
 
     @app.put('/v1/cache/{key}')
@@ -238,4 +248,6 @@ def create_app(database: Database, verifier: TokenVerifier):
     def release(id: UUID,body: Body,p: Principal=Depends(require_scope('quotas:settle'))):
         return finish(id,0,True,p)
 
+    from .service_admissions import register_service_admissions
+    register_service_admissions(app, database, verifier, reserve, finish, system_workspace)
     return app
