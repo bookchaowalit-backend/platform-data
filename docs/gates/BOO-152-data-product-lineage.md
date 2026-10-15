@@ -37,8 +37,9 @@ The fixture separates two kinds of lineage:
   - the API routes;
   - the `market-insights-web` catalog.
 
-  Every claim is a `repo:path:line` plus the text that line must contain. You can
-  re-check it with `python3 scripts/check_data_product_lineage.py --book-dev <book-dev root>`
+  Every claim is a `repo:path:line` plus the text that line must contain. Hosted CI re-reads every line at the pinned commit on each push
+  (job `lineage`). You can do the same locally with
+  `python3 scripts/check_data_product_lineage.py --book-dev <book-dev root>`
   (it uses `git show <commit>:<path>` and is read-only).
 * **Runtime lineage (`runtime_lineage_status`)** is `unverified` for every product. No
   Bronze object or `lake_lineage.json` was observed, and no API or UI was run. The
@@ -165,7 +166,16 @@ No status change, runtime move, cutover or UI connection is made or approved by 
 ## Reproduce
 
 ```bash
-bash scripts/check.sh                                   # offline: pin, coverage, evidence rules, unit tests
-python3 scripts/check_data_product_lineage.py --book-dev \
-  /home/bookchaowalit/solo-empire/projects/product/engineering/book-dev   # reads 168 evidence lines via git show
+bash scripts/check.sh   # offline: pin, coverage, evidence rules, unit tests
+# reads all 168 evidence lines via git show at the pinned commits; the folder holds github/<owner>/...
+python3 scripts/check_data_product_lineage.py --book-dev "$SOLO_BOOK_DEV_ROOT"
 ```
+
+Hosted CI does the same in the `lineage` job of `.github/workflows/check.yml`. That job
+checks out the six public sources at their pinned commits with `actions/checkout`
+(`repository`, `ref` and `path`), then runs the checker with `--book-dev`. A unit test
+fails if those refs drift from `sources` in the fixture.
+
+The private architecture-docs repository is never checked out in CI. The checker reports
+`SKIP` for it and skips only the canonical sha256/products comparison. That comparison
+runs when a local checkout is available.

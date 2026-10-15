@@ -22,8 +22,12 @@ With ``--book-dev PATH`` (the folder that contains ``github/``; default
 ``git show <commit>:<path>`` in the local checkouts and fails when the line no
 longer contains the asserted text, when the vendored contract differs from the
 data-lake-pipelines copy at its pinned commit, or when the canonical
-architecture-docs copy no longer has the recorded sha256. Read-only; it never
-fetches, checks out or contacts a network service.
+architecture-docs copy no longer has the recorded sha256. Every public source
+must be readable; hosted CI (``.github/workflows/check.yml`` job ``lineage``)
+checks them out at the pinned commits. The private canonical contract is
+optional: when it is not available locally, only its hash comparison is skipped
+(reported as ``SKIP``). Read-only; it never fetches, checks out or contacts a
+network service.
 """
 
 from __future__ import annotations
@@ -163,6 +167,8 @@ def _check_evidence_item(
     repo = item.get("repo")
     if isinstance(repo, str) and repo not in sources:
         errors.append(f"{where}: evidence repo {repo!r} is not pinned in sources")
+    elif isinstance(repo, str) and sources[repo].get("visibility") != "public":
+        errors.append(f"{where}: evidence must come from a public source that hosted CI can read")
 
 
 def validate(root: Path = ROOT) -> list[str]:
@@ -207,7 +213,15 @@ def validate(root: Path = ROOT) -> list[str]:
     for name, source in sources.items():
         if not isinstance(source, dict) or not SHA_RE.match(str(source.get("commit", ""))):
             errors.append(f"sources.{name}: commit must be a full 40-hex sha")
-        if not isinstance(source, dict) or not str(source.get("checkout", "")).startswith("github/"):
+        if not isinstance(source, dict):
+            continue
+        if source.get("visibility") not in ("public", "private"):
+            errors.append(f"sources.{name}: visibility must be 'public' or 'private'")
+        if source.get("visibility") == "private":
+            # This repository is public: record a private source by name and commit only.
+            if "checkout" in source:
+                errors.append(f"sources.{name}: private source must not record a checkout path")
+        elif not str(source.get("checkout", "")).startswith("github/"):
             errors.append(f"sources.{name}: checkout must be a path under the Book Dev github/ folder")
 
     required_kinds = fixture.get("required_evidence_kinds_for_verified")
@@ -325,12 +339,33 @@ def git_show(checkout: Path, commit: str, path: str) -> bytes | None:
     return result.stdout if result.returncode == 0 else None
 
 
-def verify_sources(root: Path, book_dev: Path) -> list[str]:
-    """Read every evidence line at its pinned commit in the local checkouts."""
+def _private_checkouts(book_dev: Path, name: str, source: dict[str, Any]) -> list[Path]:
+    """Candidate local checkouts of a private source (never recorded in the fixture)."""
+
+    found = []
+    github = book_dev / "github"
+    if github.is_dir():
+        for owner in sorted(p for p in github.iterdir() if p.is_dir()):
+            for candidate in (owner / "private" / name, owner / name):
+                if candidate.is_dir():
+                    found.append(candidate)
+    return found
+
+
+def verify_sources(root: Path, book_dev: Path, skipped: list[str] | None = None) -> list[str]:
+    """Read every evidence line at its pinned commit in the checkouts under ``book_dev``.
+
+    Public sources must be readable (hosted CI checks them out at their pinned
+    commits). The private canonical contract is optional: when it is not
+    available, only its hash/products comparison is skipped and reported in
+    ``skipped``.
+    """
 
     fixture = load_fixture(root)
     sources: dict[str, Any] = fixture["sources"]
     errors: list[str] = []
+    if skipped is None:
+        skipped = []
     cache: dict[tuple[str, str], list[str] | None] = {}
 
     def lines_of(repo: str, path: str) -> list[str] | None:
@@ -354,7 +389,9 @@ def verify_sources(root: Path, book_dev: Path) -> list[str]:
     contract = fixture.get("contract", {})
     vendored = (root / CONTRACT_RELATIVE).read_bytes()
     origin = contract.get("vendored_from", {})
-    if origin.get("source") in sources:
+    if sources.get(origin.get("source"), {}).get("visibility") != "public":
+        errors.append("contract.vendored_from must name a public source")
+    elif origin.get("source") in sources:
         source = sources[origin["source"]]
         upstream = git_show(book_dev / source["checkout"], source["commit"], origin.get("path", ""))
         if upstream is None:
@@ -364,10 +401,15 @@ def verify_sources(root: Path, book_dev: Path) -> list[str]:
     canonical = contract.get("canonical", {})
     if canonical.get("source") in sources:
         source = sources[canonical["source"]]
-        blob = git_show(book_dev / source["checkout"], source["commit"], canonical.get("path", ""))
+        blob = None
+        for checkout in _private_checkouts(book_dev, canonical["source"], source):
+            blob = git_show(checkout, source["commit"], canonical.get("path", ""))
+            if blob is not None:
+                break
         if blob is None:
-            errors.append(
-                f"canonical contract {canonical['source']} not readable at {source['commit'][:12]} (skipped hash check)"
+            skipped.append(
+                f"canonical contract {canonical['source']}@{source['commit'][:12]} not available; "
+                "skipped only its sha256/products comparison"
             )
         else:
             if sha256_bytes(blob) != canonical.get("sha256"):
@@ -388,8 +430,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
     errors = validate(root)
+    skipped: list[str] = []
     if not errors and args.book_dev:
-        errors = verify_sources(root, Path(args.book_dev).expanduser().resolve())
+        errors = verify_sources(root, Path(args.book_dev).expanduser().resolve(), skipped)
+    for message in skipped:
+        print(f"SKIP: {message}")
     if errors:
         for message in errors:
             print(f"FAIL: {message}")

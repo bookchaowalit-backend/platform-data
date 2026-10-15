@@ -24,8 +24,7 @@
       "github": "bookchaowalit/architecture-docs",
       "visibility": "private",
       "commit": "9471af55723434fd34c746ad66fa1d4f5ebf6578",
-      "checkout": "github/bookchaowalit/private/architecture-docs",
-      "role": "canonical contract (hash recorded only; content not vendored because this repo is public)"
+      "role": "canonical contract (name, commit and sha256 only; private, not vendored and not read by hosted CI)"
     },
     "data-lake-pipelines": {
       "github": "bookchaowalit/data-lake-pipelines",

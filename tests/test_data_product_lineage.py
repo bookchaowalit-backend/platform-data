@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -203,6 +204,40 @@ class VerifiedEvidenceTests(_RepoCopy):
         self.assertIn("product crypto: ui_consumer.base_url does not use contract port 8101", lineage.validate(self.root))
 
 
+class HostedCiPinTests(unittest.TestCase):
+    """The CI lineage job must check out exactly the public sources pinned in the fixture."""
+
+    def test_workflow_checks_out_every_public_source_at_its_pinned_commit(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "check.yml").read_text(encoding="utf-8")
+        checkouts = set(
+            re.findall(r"repository: (\S+)\n\s+ref: ([0-9a-f]{40})\n\s+path: book-dev/(\S+)", workflow)
+        )
+        sources = lineage.load_fixture(ROOT)["sources"]
+        expected = {
+            (s["github"], s["commit"], s["checkout"]) for s in sources.values() if s["visibility"] == "public"
+        }
+        self.assertEqual(len(expected), 6)
+        self.assertEqual(checkouts, expected)
+        self.assertIn("check_data_product_lineage.py platform-data --book-dev book-dev", workflow)
+        private = [s["github"] for s in sources.values() if s["visibility"] == "private"]
+        for name in private:
+            self.assertNotIn(name, workflow)
+
+
+class PrivateSourceTests(_RepoCopy):
+    def test_private_source_with_checkout_path_fails(self) -> None:
+        self.fixture["sources"]["architecture-docs"]["checkout"] = "github/owner/private/architecture-docs"
+        self.write_fixture()
+        self.assertIn(
+            "sources.architecture-docs: private source must not record a checkout path", lineage.validate(self.root)
+        )
+
+    def test_evidence_from_private_source_fails(self) -> None:
+        self.product("crypto")["evidence"][0]["repo"] = "architecture-docs"
+        self.write_fixture()
+        self.assertTrue(any("public source that hosted CI can read" in e for e in lineage.validate(self.root)))
+
+
 @unittest.skipIf(shutil.which("git") is None, "git is required for source verification tests")
 class SourceVerificationTests(_RepoCopy):
     """Run verify_sources against a synthetic git checkout (no network)."""
@@ -235,10 +270,12 @@ class SourceVerificationTests(_RepoCopy):
         self.git("add", "-A")
         self.git("commit", "-q", "-m", "synthetic producer")
         commit = self.git("rev-parse", "HEAD")
-        source = {"github": "synthetic/producer", "commit": commit, "checkout": "github/synthetic/producer"}
-        self.fixture["sources"] = {"synthetic": source}
+        source = {"github": "synthetic/producer", "visibility": "public", "commit": commit,
+                  "checkout": "github/synthetic/producer"}
+        self.commit = commit
+        self.fixture["sources"] = {"synthetic": source, "canon": {"github": "synthetic/canon", "visibility": "private", "commit": commit}}
         self.fixture["contract"]["vendored_from"]["source"] = "synthetic"
-        self.fixture["contract"]["canonical"]["source"] = "absent"
+        self.fixture["contract"]["canonical"]["source"] = "canon"
         evidence = {"kind": "lake_registration", "claim": "domain", "repo": "synthetic",
                     "path": "src/book_synth/config.py", "line": 2, "contains": 'LAKE_DOMAIN = "market"'}
         for product in self.fixture["products"]:
@@ -248,7 +285,29 @@ class SourceVerificationTests(_RepoCopy):
         self.git("commit", "-q", "-am", "later drift that the pinned commit must not see")
 
     def test_evidence_lines_match_pinned_commit(self) -> None:
-        self.assertEqual(lineage.verify_sources(self.root, self.book_dev), [])
+        skipped: list[str] = []
+        self.assertEqual(lineage.verify_sources(self.root, self.book_dev, skipped), [])
+        # The private canonical contract is absent (as in hosted CI): a clean skip.
+        self.assertEqual(len(skipped), 1)
+        self.assertIn("skipped only its sha256/products comparison", skipped[0])
+
+    def test_private_canonical_checked_when_available_locally(self) -> None:
+        canon = self.book_dev / "github" / "synthetic" / "private" / "canon"
+        shutil.copytree(self.checkout, canon)
+        skipped: list[str] = []
+        errors = lineage.verify_sources(self.root, self.book_dev, skipped)
+        self.assertEqual(skipped, [])
+        # The fixture records the real canonical sha256, not the synthetic copy's.
+        self.assertEqual(len(errors), 1)
+        self.assertIn("canonical contract sha256", errors[0])
+
+    def test_bogus_crypto_evidence_fails(self) -> None:
+        crypto = next(p for p in self.fixture["products"] if p["id"] == "crypto")
+        crypto["evidence"][0].update(line=99999, contains="BOGUS-NOT-IN-SOURCE")
+        self.write_fixture()
+        errors = lineage.verify_sources(self.root, self.book_dev)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("product crypto", errors[0])
 
     def test_evidence_line_drift_fails(self) -> None:
         for product in self.fixture["products"]:

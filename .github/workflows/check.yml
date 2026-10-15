@@ -35,3 +35,74 @@ jobs:
 
       - name: Run offline contract check and tests
         run: bash scripts/check.sh
+
+  lineage:
+    name: Data-product lineage evidence at pinned commits (BOO-152)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          path: platform-data
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Public producer, lake-runtime and UI sources pinned in
+      # fixtures/gates/data-product-lineage.json (tests/test_data_product_lineage.py
+      # fails if these refs drift from the fixture). The private canonical
+      # contract is not checked out; the checker skips only its hash comparison.
+      - name: Check out bookchaowalit/data-lake-pipelines at pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: bookchaowalit/data-lake-pipelines
+          ref: 1178364b0c442bf8a5f6d13307a9a5e13f45cf32
+          path: book-dev/github/bookchaowalit/public/book-products/data-lake-pipelines
+          persist-credentials: false
+
+      - name: Check out bookchaowalit/market-data at pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: bookchaowalit/market-data
+          ref: 5c2dbd9aad7a6a6e8c8dc4472b08d1ae475f208d
+          path: book-dev/github/bookchaowalit/public/book-products/market-data
+          persist-credentials: false
+
+      - name: Check out bookchaowalit/travel-flight-price-data at pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: bookchaowalit/travel-flight-price-data
+          ref: 083293c77341915031bc0f0eeb3f86da989e911d
+          path: book-dev/github/bookchaowalit/public/book-products/travel-flight-price-data
+          persist-credentials: false
+
+      - name: Check out bookchaowalit/marketing-seo-ranking-data at pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: bookchaowalit/marketing-seo-ranking-data
+          ref: 85aeee703162273c3604e899c0c5f898e6603b60
+          path: book-dev/github/bookchaowalit/public/book-products/marketing-seo-ranking-data
+          persist-credentials: false
+
+      - name: Check out bookchaowalit/tech-ai-tools-data at pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: bookchaowalit/tech-ai-tools-data
+          ref: 8d557c58e3e21c3bf93049720da3c188c589d225
+          path: book-dev/github/bookchaowalit/public/book-ai/tech-ai-tools-data
+          persist-credentials: false
+
+      - name: Check out bookchaowalit/market-insights-web at pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: bookchaowalit/market-insights-web
+          ref: cd92b36761e58b53878e0d015d04051b92c41168
+          path: book-dev/github/bookchaowalit/public/book-products/market-insights-web
+          persist-credentials: false
+
+      - name: Verify every evidence line and the vendored contract at the pinned commits
+        run: python3 platform-data/scripts/check_data_product_lineage.py platform-data --book-dev book-dev
