@@ -40,7 +40,7 @@ app = create_app(Database(runtime_dsn), configured_verifier)
 
 `MIGRATIONS` is an ordered immutable release sequence. Do not edit an applied
 migration: append another version. Readiness checks compare every migration
-version/checksum in namespace `data` and check all six tables, using
+version/checksum in namespace `data` and check all seven tables, using
 `app.state.readiness_checks`. Database unavailability, missing history, drift
 or missing tables yield generic `/readyz` 503. `/healthz` and `/metrics` come
 from core. Mutation routes also fail closed with generic errors on missing DB
@@ -48,7 +48,8 @@ state. Startup does not create tables.
 
 After explicit migrations grant runtime schema USAGE, SELECT/INSERT/UPDATE/
 DELETE on `data_cache`, `data_counters`, `data_documents`,
-`data_quota_policies`, `data_quota_buckets`, `data_reservations`, and SELECT
+`data_quota_policies`, `data_quota_buckets`, `data_reservations`,
+`data_service_admissions`, and SELECT
 on `platform_schema_migrations`. Keep migration DDL/ownership separate.
 Never grant a runtime role BYPASSRLS or superuser. All tenant tables have
 workspace-first primary keys, FORCE RLS, USING and WITH CHECK.
@@ -194,3 +195,86 @@ the service stopped and recover into a fresh database for operator review.
 Reconcile pending/expired usage against provider records before releasing any
 charge. Production activation, debt repair and destructive restore require a
 separate reviewed operator action; no such action was performed here.
+
+## Composite service admission extension — Task 5
+
+The public single-workspace quota routes above remain unchanged. An additional
+trusted service boundary coordinates a global system-workspace policy and a
+verified caller-workspace policy. Enable it explicitly:
+
+```python
+app = create_app(database, verifier, system_workspace=explicit_system_uuid)
+```
+
+CLI equivalent: set `PLATFORM_SYSTEM_WORKSPACE_ID` to an operator-configured
+UUID. No production UUID is hardcoded. Without this configuration, authenticated
+service admission calls return 503; public quota primitives remain available.
+Configure the verifier/CLI with the agreed issuer and audience `platform-api`.
+The same verifier independently verifies both JWT signatures and claims.
+
+| Route | Body | Authorization |
+|---|---|---|
+| POST `/v1/service/admissions` | `{policy,global_policy,units,idempotency_key,ttl_seconds:120}` | Service + caller pair |
+| POST `/v1/service/admissions/{id}/settle` | `{actual_units:int}` | Same service + caller actors |
+| POST `/v1/service/admissions/{id}/release` | `{}` | Same service + caller actors |
+
+`Authorization` carries a service JWT with `quotas:service` and `ws` exactly
+equal to the configured system workspace. `X-Workspace-Authorization` carries
+a separately verified caller JWT with `ai:generate`. Its signed `ws` and `sub`
+select the tenant workspace and actor. Caller workspace headers/body fields
+without a valid signature never select a workspace. Missing/forged tokens
+are 401, missing scope/wrong service workspace are 403. A different actor
+cannot reuse or finalize a mapping (403); a different tenant cannot see it
+(404). Policy names come from the trusted service body; the consuming AI
+client must select them from operator configuration, never end-user input.
+
+The global policy/reservation lives in the system workspace. Tenant policy,
+reservation and mapping live in the verified caller workspace. The mapping
+binds service workspace/actor, caller actor, policies, estimate and TTL. An
+identical key/payload recovers the same mapping; changed payload is 409.
+Migration `002_service_admissions` appends a FORCE-RLS tenant mapping table
+without changing migration 001. Apply the complete `MIGRATIONS` sequence in
+namespace `data`, then grant its DML to the runtime role. Readiness checks
+all required tables and SELECT/INSERT/UPDATE/DELETE separately for each one,
+plus migration history and schema usage. A SELECT-only grant is not ready.
+
+A mapping commits before any quota leg. Global reserve runs first, then tenant
+reserve. Immutable leg keys derive from the durable mapping UUID. Neither
+SQL transaction switches workspace context nor holds a pooled connection
+while another leg runs. Concurrent retries call the same idempotent legs.
+Success is returned only after both legs are pending and unexpired. The
+response is exactly the existing five-field envelope; `id` is always the
+composite mapping UUID, `units` stays the original estimate, `expires_at` is
+the earlier leg expiration, and `available` is the smaller leg capacity.
+Reserve replay after a finalization intent exists returns 409.
+
+Any partial error returns a failure, never permission to call a paid provider.
+Global usage may remain reserved if tenant admission rejects, a database call
+fails or the process stops between phases. This deliberately conservative
+retention is not silently released. Retrying the original key recovers the
+same global reservation and can complete the tenant leg without charging the
+global estimate twice. Expired incomplete preparations remain failed and
+require operator reconciliation; they cannot authorize a provider call.
+
+Settlement/release commits an immutable operation and actual-unit intent
+before changing either leg. Then it finalizes global and tenant reservations
+idempotently. An interrupted retry repeats only the same intent and cannot
+double-refund; a changed operation/actual amount returns 409. Settle success
+returns status `settled` with the original composite ID. Release returns
+`released`, or conservative `expired`. A release first requested after the
+earliest expiration refunds neither leg, returns `expired` with available 0,
+and still permits later actual settlement. Actual overrun accounting/debt is
+preserved separately in both leg records; any global debt blocks every tenant.
+The API never promises an atomic cross-workspace transaction or exactly-once
+external provider usage. The AI consumer must call its provider only after a
+successful pending admission, and must reconcile ambiguous provider outcomes.
+
+Extension acceptance uses actual RSA JWTs and real PostgreSQL: two-workspace
+global ceilings, parallel duplicate reserves/releases, actor binding, missing
+configuration/policy and unavailable database, SQL-triggered interruptions
+after global reserve/settle/release, restart replay, expiry/late settlement,
+overrun debt and individually revoked table write privileges. Full final
+verification: 71 tests (35 runtime, 36 original), no skips. The initial extension
+RED run had eight missing-constructor setup errors and a direct missing-route
+failure before implementation. Local environment and deployment limitations
+remain those listed above.
