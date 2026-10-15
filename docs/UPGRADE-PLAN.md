@@ -2,6 +2,10 @@
 
 ## Current state
 
+2026-10-15: shared cache/counters/search/admission runtime is a locally verified
+`pilot`; see [runtime.md](runtime.md). Legacy lake parity gates remain open.
+The historical scaffold assessment below predates this implementation.
+
 Score: 6/10 (was 5/10 before pass 2). The vendored schema is now pinned
 and drift-checked in CI, and the contract can be compared with the parent
 registry locally. The boundary now has a precise, schema-validated

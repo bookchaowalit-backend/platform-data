@@ -1,65 +1,62 @@
 # platform-data
 
-`Data` platform boundary for the Book Platform portfolio.
+Workspace cache, atomic counters, indexed document search and durable quota
+admission, installed independently as `platform_data`. Python >=3.12 and
+PostgreSQL >=16. Correlation: `SHARED-INFRA-2026-10-15`.
 
 ## Scope
 
-This repository owns the `data` capability: event ingress, lake contract, query, analytics, lineage.
-The current source implementation is recorded as `infra/scripts/data_lake` in the
-parent registry. This checkout is a local scaffold; it contains no production
-provider integration, database writer, credential, or customer payload.
+This repository owns shared data primitives and the existing lake contract.
+The new PostgreSQL runtime is locally tested; production activation, lake
+pipeline parity and legacy state migration remain separate work. Legacy
+`solo-empire` lake ingest/storage interfaces remain documented and unchanged.
 
 ## Boundary
 
 - Owner: `bookchaowalit-backend`
 - Repository: `platform-data`
-- Target remote: `https://github.com/bookchaowalit-backend/platform-data.git` (published; runtime not activated)
+- Target remote: `https://github.com/bookchaowalit-backend/platform-data.git`
 - Contract: `book-platform.contract.v1`
-- Status: `scaffolded`
-- Data owner: the platform boundary identified in `contract.json`
+- Status: `pilot`
+- Runtime package: `src/platform_data`; service-owned PostgreSQL tables
+- Dependencies: installed `platform-backend-core==0.1.0`, security, observability
 
-The platform communicates through versioned API or event contracts. Consumers
-must not import another platform's database, migration, or private runtime
-module. `solo-empire` remains the control plane and compatibility adapter until
-parity and rollback evidence permit a cutover.
+Only versioned APIs cross service boundaries. This service has no runtime
+hub imports, legacy lake writer, provider SDK, credential discovery or paid
+service calls. Signed JWT `ws` is the only workspace authority.
 
 ## Local verification
 
-Run from this repository (Python 3.11+, no third-party packages):
+The original dependency-free Python 3.11+ contract checks remain available:
 
 ```bash
 bash scripts/check.sh
 ```
 
-The check validates `contract.json` against
-[`schema/book-platform.contract.v1.schema.json`](schema/book-platform.contract.v1.schema.json),
-confirms that the README and [`docs/CONTRACT-SURFACE.md`](docs/CONTRACT-SURFACE.md)
-agree with the contract, and runs the unit tests in `tests/`. GitHub Actions
-runs the same command on every push and pull request
-(`.github/workflows/check.yml`).
+Runtime tests require Python >=3.12, an installed core 0.1.0 artifact, and an
+explicit disposable local PostgreSQL admin DSN. They create unique databases
+and unprivileged runtime roles; missing `PLATFORM_TEST_DSN` fails, never skips.
 
-`scripts/check_schema_pin.py` fails when the vendored schema no longer
-matches the sha256 pinned in `schema/book-platform.contract.v1.schema.json.sha256`
-(the canonical copy lives in `bookchaowalit-backend-core/contracts/`; change it
-there first, then copy the schema and its pin here). Pass
-`--canonical ../platform-backend-core` to also compare with a local
-checkout. `python3 scripts/check_registry_alignment.py --solo-empire ../solo-empire`
-compares this contract with the parent platform registry (local only; read-only).
+```bash
+python -m pip install -e '.[test]'
+PLATFORM_TEST_DSN="$LOCAL_DISPOSABLE_ADMIN_DSN" python -m pytest -q
+```
 
-The check validates repository shape and contract metadata only. It does not
-claim deployment, provider connectivity, data migration, or production
-readiness.
+The schema and sha256 pin are unchanged. `scripts/check_schema_pin.py
+--canonical ../platform-backend-core` also compares the sibling canonical
+copy. Registry alignment may differ until the parent integrates pilot metadata;
+no registry state is read by the runtime.
 
-## Contract surface
-
-Dependencies: `security`, `observability`. The interfaces this boundary owns or consumes, with
-their auth, idempotency and error behaviour, are listed in
-[`docs/CONTRACT-SURFACE.md`](docs/CONTRACT-SURFACE.md). Planned work is tracked
-in [`docs/UPGRADE-PLAN.md`](docs/UPGRADE-PLAN.md).
+See [API and runbook](docs/runtime.md) for installation, migration, exact
+quota semantics and the local evidence record. [Contract surface](docs/CONTRACT-SURFACE.md)
+retains the lake compatibility interfaces.
 
 ## Migration gate
 
-Before activating a remote or changing a consumer, add sanitized fixtures for
-success, duplicate delivery, timeout and provider failure; prove tenant/privacy
-isolation; compare the old and new contract; and rehearse rollback on a
-disposable state store. Record the evidence in the parent platform registry.
+Migrations run explicitly with a separate DDL role; startup never migrates.
+Missing/drifted migrations yield readiness 503. All six tenant tables use
+FORCE RLS with USING/WITH CHECK and workspace-leading primary indexes.
+Runtime roles must be NOSUPERUSER NOBYPASSRLS. Independent replicas coordinate
+through PostgreSQL locks and persistent reservations. This evidence does not
+constitute production load acceptance or a lake cutover. No deployment or push
+was performed in this local implementation.
