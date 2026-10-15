@@ -243,7 +243,9 @@ reserve. Immutable leg keys derive from the durable mapping UUID. Neither
 SQL transaction switches workspace context nor holds a pooled connection
 while another leg runs. Concurrent retries call the same idempotent legs.
 Success is returned only after both legs are pending and unexpired. The
-response is exactly the existing five-field envelope; `id` is always the
+response is exactly the existing five-field envelope; public reserve status is
+`reserved` for both new and replayed admissions (internal storage remains
+`pending`); `id` is always the
 composite mapping UUID, `units` stays the original estimate, `expires_at` is
 the earlier leg expiration, and `available` is the smaller leg capacity.
 Reserve replay after a finalization intent exists returns 409.
@@ -267,14 +269,14 @@ and still permits later actual settlement. Actual overrun accounting/debt is
 preserved separately in both leg records; any global debt blocks every tenant.
 The API never promises an atomic cross-workspace transaction or exactly-once
 external provider usage. The AI consumer must call its provider only after a
-successful pending admission, and must reconcile ambiguous provider outcomes.
+successful `reserved` admission, and must reconcile ambiguous provider outcomes.
 
 Extension acceptance uses actual RSA JWTs and real PostgreSQL: two-workspace
 global ceilings, parallel duplicate reserves/releases, actor binding, missing
 configuration/policy and unavailable database, SQL-triggered interruptions
 after global reserve/settle/release, restart replay, expiry/late settlement,
 overrun debt and individually revoked table write privileges. Full final
-verification: 71 tests (35 runtime, 36 original), no skips. The initial extension
+verification: 72 tests (36 runtime, 36 original), no skips. The initial extension
 RED run had eight missing-constructor setup errors and a direct missing-route
 failure before implementation. Local environment and deployment limitations
 remain those listed above.

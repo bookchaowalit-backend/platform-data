@@ -232,3 +232,14 @@ def test_concurrent_tenants_cannot_overshoot_shared_global(service):
     assert sum(r.status_code==429 for r in responses)==20
     with psycopg.connect(test.admin_dsn) as conn:
         assert conn.execute('SELECT used FROM data_quota_buckets WHERE workspace_id=%s',(system,)).fetchone()==(10,)
+
+
+def test_composite_reserve_public_status_is_reserved_for_new_and_replay(service):
+    client,pair,*_=service
+    created=admission(client,pair())
+    assert created.status_code==200
+    assert created.json()['status']=='reserved'
+    replay=admission(client,pair())
+    assert replay.status_code==200
+    assert replay.json()['status']=='reserved'
+    assert replay.json()==created.json()
