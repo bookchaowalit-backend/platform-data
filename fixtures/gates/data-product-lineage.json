@@ -1,0 +1,1837 @@
+{
+  "fixture": "data-product-lineage",
+  "issue": "BOO-152",
+  "gate": "Verify each producer contract and lake lineage before connecting a UI to it.",
+  "registry_entry": "solo-empire:repository-catalog/registries/system-repositories.yaml#data-products",
+  "verification_scope": "Static only: every evidence line was read at the pinned commit listed in sources. 'verified' means producer config, lake registration, Bronze path, replay/capture spec, freshness default, API routes and the market-insights-web catalog agree at those commits. No lake object, lake_lineage.json, running API or UI was observed, so runtime_lineage_status is 'unverified' for every product.",
+  "contract": {
+    "freeze_id": "data-product-contracts-v2",
+    "vendored_path": "contracts/vendor/data-product-contracts-v2.yaml",
+    "vendored_from": {
+      "source": "data-lake-pipelines",
+      "path": "systems/architecture/data-product-contracts-v2.yaml",
+      "sha256": "289ae5da4116cdceae5d636f4c8f6a0a76d28cc1e77d3001a273bb744c5ac9a6"
+    },
+    "canonical": {
+      "source": "architecture-docs",
+      "path": "systems/architecture/data-product-contracts-v2.yaml",
+      "sha256": "7350615b23f6ffbbbaa227b704fbf94aef7345bf12f4b592602bcb44ec705e9a",
+      "note": "products, endpoints, envelope and policy sections are byte-identical to the vendored copy; only the consumers block (consumer ids/paths) differs"
+    }
+  },
+  "sources": {
+    "architecture-docs": {
+      "github": "bookchaowalit/architecture-docs",
+      "visibility": "private",
+      "commit": "9471af55723434fd34c746ad66fa1d4f5ebf6578",
+      "checkout": "github/bookchaowalit/private/architecture-docs",
+      "role": "canonical contract (hash recorded only; content not vendored because this repo is public)"
+    },
+    "data-lake-pipelines": {
+      "github": "bookchaowalit/data-lake-pipelines",
+      "visibility": "public",
+      "commit": "1178364b0c442bf8a5f6d13307a9a5e13f45cf32",
+      "checkout": "github/bookchaowalit/public/book-products/data-lake-pipelines",
+      "role": "lake runtime (infra/scripts/data_lake, moved out of solo-empire) and public contract copy"
+    },
+    "market-data": {
+      "github": "bookchaowalit/market-data",
+      "visibility": "public",
+      "commit": "5c2dbd9aad7a6a6e8c8dc4472b08d1ae475f208d",
+      "checkout": "github/bookchaowalit/public/book-products/market-data",
+      "role": "producer monorepo for crypto, stocks, fx, defi"
+    },
+    "travel-flight-price-data": {
+      "github": "bookchaowalit/travel-flight-price-data",
+      "visibility": "public",
+      "commit": "083293c77341915031bc0f0eeb3f86da989e911d",
+      "checkout": "github/bookchaowalit/public/book-products/travel-flight-price-data",
+      "role": "producer for flights (formerly book-flight-data)"
+    },
+    "marketing-seo-ranking-data": {
+      "github": "bookchaowalit/marketing-seo-ranking-data",
+      "visibility": "public",
+      "commit": "85aeee703162273c3604e899c0c5f898e6603b60",
+      "checkout": "github/bookchaowalit/public/book-products/marketing-seo-ranking-data",
+      "role": "producer for seo (formerly book-seo-data)"
+    },
+    "tech-ai-tools-data": {
+      "github": "bookchaowalit/tech-ai-tools-data",
+      "visibility": "public",
+      "commit": "8d557c58e3e21c3bf93049720da3c188c589d225",
+      "checkout": "github/bookchaowalit/public/book-ai/tech-ai-tools-data",
+      "role": "producer for ai_tools (formerly book-ai-tools-data)"
+    },
+    "market-insights-web": {
+      "github": "bookchaowalit/market-insights-web",
+      "visibility": "public",
+      "commit": "cd92b36761e58b53878e0d015d04051b92c41168",
+      "checkout": "github/bookchaowalit/public/book-products/market-insights-web",
+      "role": "UI consumer named by the gate"
+    }
+  },
+  "required_evidence_kinds_for_verified": [
+    "producer_config",
+    "lake_registration",
+    "lake_path_template",
+    "lake_ingest",
+    "schema",
+    "freshness",
+    "api_routes",
+    "ui_consumer"
+  ],
+  "consumer_extras_not_in_v2": [
+    {
+      "id": "news",
+      "port": 8108,
+      "contract": "systems/architecture/news-data-contract-v1.yaml"
+    },
+    {
+      "id": "discovery",
+      "port": 8110,
+      "contract": "systems/architecture/discovery-data-contract-v1.yaml"
+    }
+  ],
+  "products": [
+    {
+      "id": "crypto",
+      "contract": {
+        "port": 8101,
+        "schema_version": "crypto.v1",
+        "repository": "book-crypto-data",
+        "package": "book_crypto"
+      },
+      "producer": {
+        "source": "market-data",
+        "github": "bookchaowalit/market-data",
+        "path": "sources/crypto",
+        "package_dir": "sources/crypto/src/book_crypto",
+        "ingest_module": "book_crypto.ingest",
+        "api_module": "book_crypto.api"
+      },
+      "lake": {
+        "runtime": "data-lake-pipelines:infra/scripts/data_lake",
+        "source": "book-crypto-data",
+        "domain": "market",
+        "datasets": [
+          "crypto_prices",
+          "crypto_trending",
+          "crypto_ohlcv",
+          "crypto_funding"
+        ],
+        "records_dataset": "crypto_prices",
+        "history_dataset": "crypto_prices",
+        "bronze_path": "bronze/domain=market/dataset=crypto_prices/schema_version=1/ingest_date=<date>/source=book-crypto-data/part-<batch>.parquet",
+        "lineage_file": "data/lake_lineage.json",
+        "scheduled_capture": "infra/scripts/data_lake/run_market_capture.py (0 */4 * * *)"
+      },
+      "schema": {
+        "product_schema_version": "crypto.v1",
+        "bronze_schema_version": "1",
+        "privacy_class": "public",
+        "retention_class": "operational"
+      },
+      "freshness": {
+        "stale_after_hours_default": 24,
+        "override_env": "STALE_AFTER_HOURS",
+        "stale_status": "stale"
+      },
+      "ui_consumer": {
+        "repository": "market-insights-web",
+        "catalog_files": [
+          "src/data-products/catalog.ts",
+          "js/data-products-browser.js"
+        ],
+        "base_url": "http://127.0.0.1:8101"
+      },
+      "status": "verified",
+      "runtime_lineage_status": "unverified",
+      "gaps": [],
+      "evidence": [
+        {
+          "kind": "producer_config",
+          "claim": "lake source id equals contract repository",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 12,
+          "contains": "REPO_NAME = 'book-crypto-data'"
+        },
+        {
+          "kind": "producer_config",
+          "claim": "product schema_version equals contract",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 14,
+          "contains": "SCHEMA_VERSION = 'crypto.v1'"
+        },
+        {
+          "kind": "producer_config",
+          "claim": "API port default equals contract port",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 60,
+          "contains": "\"API_PORT\", \"8101\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake source is the repository name",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 24,
+          "contains": "LAKE_SOURCE = REPO_NAME"
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake domain",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 25,
+          "contains": "LAKE_DOMAIN = \"market\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset crypto_prices",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 26,
+          "contains": "LAKE_DATASET_PRICES = \"crypto_prices\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset crypto_trending",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 27,
+          "contains": "LAKE_DATASET_TRENDING = \"crypto_trending\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset crypto_ohlcv",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 29,
+          "contains": "LAKE_DATASET_OHLCV = \"crypto_ohlcv\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset crypto_funding",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 30,
+          "contains": "LAKE_DATASET_FUNDING = \"crypto_funding\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "bronze schema version",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 31,
+          "contains": "LAKE_BRONZE_SCHEMA_VERSION = \"1\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "privacy class public",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 32,
+          "contains": "LAKE_PRIVACY_CLASS = \"public\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "producer registers a shared-adapter LakeProductContract",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/lake.py",
+          "line": 77,
+          "contains": "pa.LakeProductContract("
+        },
+        {
+          "kind": "lake_path_template",
+          "claim": "adapter Bronze dataset path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/product_adapter.py",
+          "line": 259,
+          "contains": "f\"bronze/domain={contract.domain}/dataset={dataset}/\""
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "replay capture spec for the primary dataset",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/ingest_scraping_captures.py",
+          "line": 62,
+          "contains": "market-data/sources/crypto/data/exported/crypto_prices.csv"
+        },
+        {
+          "kind": "schema",
+          "claim": "envelope builder used by every endpoint",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/store.py",
+          "line": 519,
+          "contains": "def envelope"
+        },
+        {
+          "kind": "freshness",
+          "claim": "stale threshold default (hours)",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 64,
+          "contains": "\"STALE_AFTER_HOURS\", \"24\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/records route",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/api.py",
+          "line": 179,
+          "contains": "\"/v1/records\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/history route",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/api.py",
+          "line": 225,
+          "contains": "\"/v1/history\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "POST /v1/refresh disabled by default",
+          "repo": "market-data",
+          "path": "sources/crypto/src/book_crypto/config.py",
+          "line": 57,
+          "contains": "ALLOW_REFRESH = env_bool(\"ALLOW_REFRESH\", False)"
+        },
+        {
+          "kind": "producer_runtime",
+          "claim": "local stack registers product id, port and package",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_data_product_stack.py",
+          "line": 49,
+          "contains": "ProductRuntime(\"crypto\", \"book-crypto-data\", \"book_crypto.api\", 8101"
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "scheduled capture runner invokes the producer ingest",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_market_capture.py",
+          "line": 66,
+          "contains": "\"book_crypto.ingest\","
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog lists product id",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 6,
+          "contains": "id: \"crypto\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog schemaVersion",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 10,
+          "contains": "schemaVersion: \"crypto.v1\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog port",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 11,
+          "contains": "port: 8101"
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "browser catalog port",
+          "repo": "market-insights-web",
+          "path": "js/data-products-browser.js",
+          "line": 13,
+          "contains": "port: 8101"
+        }
+      ]
+    },
+    {
+      "id": "stocks",
+      "contract": {
+        "port": 8102,
+        "schema_version": "stock.v1",
+        "repository": "book-stock-data",
+        "package": "book_stock"
+      },
+      "producer": {
+        "source": "market-data",
+        "github": "bookchaowalit/market-data",
+        "path": "sources/stock",
+        "package_dir": "sources/stock/src/book_stock",
+        "ingest_module": "book_stock.ingest",
+        "api_module": "book_stock.api"
+      },
+      "lake": {
+        "runtime": "data-lake-pipelines:infra/scripts/data_lake",
+        "source": "book-stock-data",
+        "domain": "market",
+        "datasets": [
+          "stock_prices",
+          "stock_history"
+        ],
+        "records_dataset": "stock_prices",
+        "history_dataset": "stock_history",
+        "bronze_path": "bronze/domain=market/dataset=stock_prices/schema_version=1/ingest_date=<date>/source=book-stock-data/part-<batch>.parquet",
+        "lineage_file": "data/lake_lineage.json",
+        "scheduled_capture": "infra/scripts/data_lake/run_market_capture.py (0 8 * * *)"
+      },
+      "schema": {
+        "product_schema_version": "stock.v1",
+        "bronze_schema_version": "1",
+        "privacy_class": "public",
+        "retention_class": "operational"
+      },
+      "freshness": {
+        "stale_after_hours_default": 24,
+        "override_env": "STALE_AFTER_HOURS",
+        "stale_status": "stale"
+      },
+      "ui_consumer": {
+        "repository": "market-insights-web",
+        "catalog_files": [
+          "src/data-products/catalog.ts",
+          "js/data-products-browser.js"
+        ],
+        "base_url": "http://127.0.0.1:8102"
+      },
+      "status": "verified",
+      "runtime_lineage_status": "unverified",
+      "gaps": [],
+      "evidence": [
+        {
+          "kind": "producer_config",
+          "claim": "lake source id equals contract repository",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 12,
+          "contains": "REPO_NAME = \"book-stock-data\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "product schema_version equals contract",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 14,
+          "contains": "SCHEMA_VERSION = \"stock.v1\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "API port default equals contract port",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 55,
+          "contains": "\"API_PORT\", \"8102\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake source is the repository name",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 23,
+          "contains": "LAKE_SOURCE = REPO_NAME"
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake domain",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 24,
+          "contains": "LAKE_DOMAIN = \"market\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset stock_prices",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 25,
+          "contains": "LAKE_DATASET_PRICES = \"stock_prices\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset stock_history",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 26,
+          "contains": "LAKE_DATASET_HISTORY = \"stock_history\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "bronze schema version",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 27,
+          "contains": "LAKE_BRONZE_SCHEMA_VERSION = \"1\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "privacy class public",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 28,
+          "contains": "LAKE_PRIVACY_CLASS = \"public\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "producer registers a shared-adapter LakeProductContract",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/lake.py",
+          "line": 68,
+          "contains": "pa.LakeProductContract("
+        },
+        {
+          "kind": "lake_path_template",
+          "claim": "adapter Bronze dataset path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/product_adapter.py",
+          "line": 259,
+          "contains": "f\"bronze/domain={contract.domain}/dataset={dataset}/\""
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "replay capture spec for the primary dataset",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/ingest_scraping_captures.py",
+          "line": 84,
+          "contains": "market-data/sources/stock/data/exported/stock_prices.csv"
+        },
+        {
+          "kind": "schema",
+          "claim": "envelope builder used by every endpoint",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/store.py",
+          "line": 213,
+          "contains": "def envelope"
+        },
+        {
+          "kind": "freshness",
+          "claim": "stale threshold default (hours)",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 59,
+          "contains": "\"STALE_AFTER_HOURS\", \"24\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/records route",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/api.py",
+          "line": 167,
+          "contains": "\"/v1/records\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/history route",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/api.py",
+          "line": 213,
+          "contains": "\"/v1/history\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "POST /v1/refresh disabled by default",
+          "repo": "market-data",
+          "path": "sources/stock/src/book_stock/config.py",
+          "line": 52,
+          "contains": "ALLOW_REFRESH = env_bool(\"ALLOW_REFRESH\", False)"
+        },
+        {
+          "kind": "producer_runtime",
+          "claim": "local stack registers product id, port and package",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_data_product_stack.py",
+          "line": 50,
+          "contains": "ProductRuntime(\"stocks\", \"book-stock-data\", \"book_stock.api\", 8102"
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "scheduled capture runner invokes the producer ingest",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_market_capture.py",
+          "line": 75,
+          "contains": "\"book_stock.ingest\","
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog lists product id",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 15,
+          "contains": "id: \"stocks\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog schemaVersion",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 19,
+          "contains": "schemaVersion: \"stock.v1\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog port",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 20,
+          "contains": "port: 8102"
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "browser catalog port",
+          "repo": "market-insights-web",
+          "path": "js/data-products-browser.js",
+          "line": 22,
+          "contains": "port: 8102"
+        }
+      ]
+    },
+    {
+      "id": "fx",
+      "contract": {
+        "port": 8103,
+        "schema_version": "fx.v1",
+        "repository": "book-fx-data",
+        "package": "book_fx"
+      },
+      "producer": {
+        "source": "market-data",
+        "github": "bookchaowalit/market-data",
+        "path": "sources/fx",
+        "package_dir": "sources/fx/src/book_fx",
+        "ingest_module": "book_fx.ingest",
+        "api_module": "book_fx.api"
+      },
+      "lake": {
+        "runtime": "data-lake-pipelines:infra/scripts/data_lake",
+        "source": "book-fx-data",
+        "domain": "market",
+        "datasets": [
+          "exchange_rates",
+          "exchange_history"
+        ],
+        "records_dataset": "exchange_rates",
+        "history_dataset": "exchange_history",
+        "bronze_path": "bronze/domain=market/dataset=exchange_rates/schema_version=1/ingest_date=<date>/source=book-fx-data/part-<batch>.parquet",
+        "lineage_file": "data/lake_lineage.json",
+        "scheduled_capture": "infra/scripts/data_lake/run_market_capture.py (0 */6 * * *)"
+      },
+      "schema": {
+        "product_schema_version": "fx.v1",
+        "bronze_schema_version": "1",
+        "privacy_class": "public",
+        "retention_class": "operational"
+      },
+      "freshness": {
+        "stale_after_hours_default": 24,
+        "override_env": "STALE_AFTER_HOURS",
+        "stale_status": "stale"
+      },
+      "ui_consumer": {
+        "repository": "market-insights-web",
+        "catalog_files": [
+          "src/data-products/catalog.ts",
+          "js/data-products-browser.js"
+        ],
+        "base_url": "http://127.0.0.1:8103"
+      },
+      "status": "verified",
+      "runtime_lineage_status": "unverified",
+      "gaps": [],
+      "evidence": [
+        {
+          "kind": "producer_config",
+          "claim": "lake source id equals contract repository",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 12,
+          "contains": "REPO_NAME = \"book-fx-data\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "product schema_version equals contract",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 14,
+          "contains": "SCHEMA_VERSION = \"fx.v1\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "API port default equals contract port",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 54,
+          "contains": "\"API_PORT\", \"8103\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake source is the repository name",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 22,
+          "contains": "LAKE_SOURCE = REPO_NAME"
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake domain",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 23,
+          "contains": "LAKE_DOMAIN = \"market\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset exchange_rates",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 24,
+          "contains": "LAKE_DATASET_RATES = \"exchange_rates\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset exchange_history",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 25,
+          "contains": "LAKE_DATASET_HISTORY = \"exchange_history\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "bronze schema version",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 26,
+          "contains": "LAKE_BRONZE_SCHEMA_VERSION = \"1\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "privacy class public",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 27,
+          "contains": "LAKE_PRIVACY_CLASS = \"public\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "producer registers a shared-adapter LakeProductContract",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/lake.py",
+          "line": 68,
+          "contains": "pa.LakeProductContract("
+        },
+        {
+          "kind": "lake_path_template",
+          "claim": "adapter Bronze dataset path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/product_adapter.py",
+          "line": 259,
+          "contains": "f\"bronze/domain={contract.domain}/dataset={dataset}/\""
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "replay capture spec for the primary dataset",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/ingest_scraping_captures.py",
+          "line": 106,
+          "contains": "market-data/sources/fx/data/exported/exchange_rates.csv"
+        },
+        {
+          "kind": "schema",
+          "claim": "envelope builder used by every endpoint",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/store.py",
+          "line": 206,
+          "contains": "def envelope"
+        },
+        {
+          "kind": "freshness",
+          "claim": "stale threshold default (hours)",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 58,
+          "contains": "\"STALE_AFTER_HOURS\", \"24\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/records route",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/api.py",
+          "line": 167,
+          "contains": "\"/v1/records\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/history route",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/api.py",
+          "line": 213,
+          "contains": "\"/v1/history\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "POST /v1/refresh disabled by default",
+          "repo": "market-data",
+          "path": "sources/fx/src/book_fx/config.py",
+          "line": 51,
+          "contains": "ALLOW_REFRESH = env_bool(\"ALLOW_REFRESH\", False)"
+        },
+        {
+          "kind": "producer_runtime",
+          "claim": "local stack registers product id, port and package",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_data_product_stack.py",
+          "line": 51,
+          "contains": "ProductRuntime(\"fx\", \"book-fx-data\", \"book_fx.api\", 8103"
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "scheduled capture runner invokes the producer ingest",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_market_capture.py",
+          "line": 84,
+          "contains": "\"book_fx.ingest\","
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog lists product id",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 24,
+          "contains": "id: \"fx\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog schemaVersion",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 28,
+          "contains": "schemaVersion: \"fx.v1\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog port",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 29,
+          "contains": "port: 8103"
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "browser catalog port",
+          "repo": "market-insights-web",
+          "path": "js/data-products-browser.js",
+          "line": 31,
+          "contains": "port: 8103"
+        }
+      ]
+    },
+    {
+      "id": "defi",
+      "contract": {
+        "port": 8104,
+        "schema_version": "defi.v1",
+        "repository": "book-defi-data",
+        "package": "book_defi"
+      },
+      "producer": {
+        "source": "market-data",
+        "github": "bookchaowalit/market-data",
+        "path": "sources/defi",
+        "package_dir": "sources/defi/src/book_defi",
+        "ingest_module": "book_defi.ingest",
+        "api_module": "book_defi.api"
+      },
+      "lake": {
+        "runtime": "data-lake-pipelines:infra/scripts/data_lake",
+        "source": "book-defi-data",
+        "domain": "market",
+        "datasets": [
+          "defi_yields",
+          "defi_yields_history"
+        ],
+        "records_dataset": "defi_yields",
+        "history_dataset": "defi_yields_history",
+        "bronze_path": "bronze/domain=market/dataset=defi_yields/schema_version=1/ingest_date=<date>/source=book-defi-data/part-<batch>.parquet",
+        "lineage_file": "data/lake_lineage.json",
+        "scheduled_capture": "infra/scripts/data_lake/run_market_capture.py (0 7 * * *)"
+      },
+      "schema": {
+        "product_schema_version": "defi.v1",
+        "bronze_schema_version": "1",
+        "privacy_class": "public",
+        "retention_class": "operational"
+      },
+      "freshness": {
+        "stale_after_hours_default": 24,
+        "override_env": "STALE_AFTER_HOURS",
+        "stale_status": "stale"
+      },
+      "ui_consumer": {
+        "repository": "market-insights-web",
+        "catalog_files": [
+          "src/data-products/catalog.ts",
+          "js/data-products-browser.js"
+        ],
+        "base_url": "http://127.0.0.1:8104"
+      },
+      "status": "verified",
+      "runtime_lineage_status": "unverified",
+      "gaps": [],
+      "evidence": [
+        {
+          "kind": "producer_config",
+          "claim": "lake source id equals contract repository",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 12,
+          "contains": "REPO_NAME = \"book-defi-data\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "product schema_version equals contract",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 14,
+          "contains": "SCHEMA_VERSION = \"defi.v1\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "API port default equals contract port",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 54,
+          "contains": "\"API_PORT\", \"8104\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake source is the repository name",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 22,
+          "contains": "LAKE_SOURCE = REPO_NAME"
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake domain",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 23,
+          "contains": "LAKE_DOMAIN = \"market\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset defi_yields",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 24,
+          "contains": "LAKE_DATASET_YIELDS = \"defi_yields\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset defi_yields_history",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 25,
+          "contains": "LAKE_DATASET_HISTORY = \"defi_yields_history\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "bronze schema version",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 26,
+          "contains": "LAKE_BRONZE_SCHEMA_VERSION = \"1\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "privacy class public",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 27,
+          "contains": "LAKE_PRIVACY_CLASS = \"public\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "producer registers a shared-adapter LakeProductContract",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/lake.py",
+          "line": 77,
+          "contains": "pa.LakeProductContract("
+        },
+        {
+          "kind": "lake_path_template",
+          "claim": "adapter Bronze dataset path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/product_adapter.py",
+          "line": 259,
+          "contains": "f\"bronze/domain={contract.domain}/dataset={dataset}/\""
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "replay capture spec for the primary dataset",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/ingest_scraping_captures.py",
+          "line": 128,
+          "contains": "market-data/sources/defi/data/exported/defi_yields.csv"
+        },
+        {
+          "kind": "schema",
+          "claim": "envelope builder used by every endpoint",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/store.py",
+          "line": 173,
+          "contains": "def envelope"
+        },
+        {
+          "kind": "freshness",
+          "claim": "stale threshold default (hours)",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 63,
+          "contains": "\"STALE_AFTER_HOURS\", \"24\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/records route",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/api.py",
+          "line": 163,
+          "contains": "\"/v1/records\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/history route",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/api.py",
+          "line": 209,
+          "contains": "\"/v1/history\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "POST /v1/refresh disabled by default",
+          "repo": "market-data",
+          "path": "sources/defi/src/book_defi/config.py",
+          "line": 51,
+          "contains": "ALLOW_REFRESH = env_bool(\"ALLOW_REFRESH\", False)"
+        },
+        {
+          "kind": "producer_runtime",
+          "claim": "local stack registers product id, port and package",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_data_product_stack.py",
+          "line": 52,
+          "contains": "ProductRuntime(\"defi\", \"book-defi-data\", \"book_defi.api\", 8104"
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "scheduled capture runner invokes the producer ingest",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_market_capture.py",
+          "line": 93,
+          "contains": "\"book_defi.ingest\","
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog lists product id",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 33,
+          "contains": "id: \"defi\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog schemaVersion",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 37,
+          "contains": "schemaVersion: \"defi.v1\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog port",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 38,
+          "contains": "port: 8104"
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "browser catalog port",
+          "repo": "market-insights-web",
+          "path": "js/data-products-browser.js",
+          "line": 40,
+          "contains": "port: 8104"
+        }
+      ]
+    },
+    {
+      "id": "flights",
+      "contract": {
+        "port": 8105,
+        "schema_version": "flight.v1",
+        "repository": "book-flight-data",
+        "package": "book_flight"
+      },
+      "producer": {
+        "source": "travel-flight-price-data",
+        "github": "bookchaowalit/travel-flight-price-data",
+        "path": ".",
+        "package_dir": "src/book_flight",
+        "ingest_module": "book_flight.ingest",
+        "api_module": "book_flight.api"
+      },
+      "lake": {
+        "runtime": "data-lake-pipelines:infra/scripts/data_lake",
+        "source": "book-flight-data",
+        "domain": "travel",
+        "datasets": [
+          "flight_prices",
+          "flight_prices_history"
+        ],
+        "records_dataset": "flight_prices",
+        "history_dataset": "flight_prices_history",
+        "bronze_path": "bronze/domain=travel/dataset=flight_prices/schema_version=1/ingest_date=<date>/source=book-flight-data/part-<batch>.parquet",
+        "lineage_file": "data/lake_lineage.json",
+        "scheduled_capture": null
+      },
+      "schema": {
+        "product_schema_version": "flight.v1",
+        "bronze_schema_version": "1",
+        "privacy_class": "public",
+        "retention_class": "operational"
+      },
+      "freshness": {
+        "stale_after_hours_default": 24,
+        "override_env": "STALE_AFTER_HOURS",
+        "stale_status": "stale"
+      },
+      "ui_consumer": {
+        "repository": "market-insights-web",
+        "catalog_files": [
+          "src/data-products/catalog.ts",
+          "js/data-products-browser.js"
+        ],
+        "base_url": "http://127.0.0.1:8105"
+      },
+      "status": "unverified",
+      "runtime_lineage_status": "unverified",
+      "gaps": [
+        "Contract path, run_data_product_stack.py and ingest_scraping_captures.py point at github/bookchaowalit/private/book-products/travel-flight-price-data, but bookchaowalit/travel-flight-price-data is PUBLIC and is checked out at github/bookchaowalit/public/book-products/travel-flight-price-data; data_product_contract_guard.py reports 'producer missing' on the real layout, so the capture -> landing -> Bronze replay cannot resolve its source CSV.",
+        "No scheduled capture runner in data-lake-pipelines invokes this producer's ingest; only the replay importer (ingest_scraping_captures.py) feeds Bronze."
+      ],
+      "evidence": [
+        {
+          "kind": "producer_config",
+          "claim": "lake source id equals contract repository",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 12,
+          "contains": "REPO_NAME = \"book-flight-data\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "product schema_version equals contract",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 14,
+          "contains": "SCHEMA_VERSION = \"flight.v1\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "API port default equals contract port",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 55,
+          "contains": "\"API_PORT\", \"8105\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake source is the repository name",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 23,
+          "contains": "LAKE_SOURCE = REPO_NAME"
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake domain",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 24,
+          "contains": "LAKE_DOMAIN = \"travel\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset flight_prices",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 25,
+          "contains": "LAKE_DATASET_PRICES = \"flight_prices\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset flight_prices_history",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 26,
+          "contains": "LAKE_DATASET_HISTORY = \"flight_prices_history\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "bronze schema version",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 27,
+          "contains": "LAKE_BRONZE_SCHEMA_VERSION = \"1\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "privacy class public",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 28,
+          "contains": "LAKE_PRIVACY_CLASS = \"public\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "producer registers a shared-adapter LakeProductContract",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/lake.py",
+          "line": 74,
+          "contains": "pa.LakeProductContract("
+        },
+        {
+          "kind": "lake_path_template",
+          "claim": "adapter Bronze dataset path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/product_adapter.py",
+          "line": 259,
+          "contains": "f\"bronze/domain={contract.domain}/dataset={dataset}/\""
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "replay capture spec for the primary dataset",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/ingest_scraping_captures.py",
+          "line": 150,
+          "contains": "private/book-products/travel-flight-price-data/data/exported/flight_prices.csv"
+        },
+        {
+          "kind": "schema",
+          "claim": "envelope builder used by every endpoint",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/store.py",
+          "line": 170,
+          "contains": "def envelope"
+        },
+        {
+          "kind": "freshness",
+          "claim": "stale threshold default (hours)",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 64,
+          "contains": "\"STALE_AFTER_HOURS\", \"24\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/records route",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/api.py",
+          "line": 164,
+          "contains": "\"/v1/records\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/history route",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/api.py",
+          "line": 210,
+          "contains": "\"/v1/history\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "POST /v1/refresh disabled by default",
+          "repo": "travel-flight-price-data",
+          "path": "src/book_flight/config.py",
+          "line": 52,
+          "contains": "ALLOW_REFRESH = env_bool(\"ALLOW_REFRESH\", False)"
+        },
+        {
+          "kind": "producer_runtime",
+          "claim": "local stack registers product id, port and package",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_data_product_stack.py",
+          "line": 53,
+          "contains": "ProductRuntime(\"flights\", \"book-flight-data\", \"book_flight.api\", 8105"
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog lists product id",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 42,
+          "contains": "id: \"flights\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog schemaVersion",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 46,
+          "contains": "schemaVersion: \"flight.v1\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog port",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 47,
+          "contains": "port: 8105"
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "browser catalog port",
+          "repo": "market-insights-web",
+          "path": "js/data-products-browser.js",
+          "line": 49,
+          "contains": "port: 8105"
+        },
+        {
+          "kind": "lineage_gap",
+          "claim": "lake replay reads from the private/ path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/ingest_scraping_captures.py",
+          "line": 150,
+          "contains": "private/book-products/travel-flight-price-data/data/exported/flight_prices.csv"
+        },
+        {
+          "kind": "lineage_gap",
+          "claim": "local stack starts the product from the private/ path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_data_product_stack.py",
+          "line": 53,
+          "contains": "\"private/book-products/travel-flight-price-data\""
+        }
+      ]
+    },
+    {
+      "id": "seo",
+      "contract": {
+        "port": 8106,
+        "schema_version": "seo.v1",
+        "repository": "book-seo-data",
+        "package": "book_seo"
+      },
+      "producer": {
+        "source": "marketing-seo-ranking-data",
+        "github": "bookchaowalit/marketing-seo-ranking-data",
+        "path": ".",
+        "package_dir": "src/book_seo",
+        "ingest_module": "book_seo.ingest",
+        "api_module": "book_seo.api"
+      },
+      "lake": {
+        "runtime": "data-lake-pipelines:infra/scripts/data_lake",
+        "source": "book-seo-data",
+        "domain": "seo",
+        "datasets": [
+          "seo_rankings",
+          "seo_rankings_history"
+        ],
+        "records_dataset": "seo_rankings",
+        "history_dataset": "seo_rankings_history",
+        "bronze_path": "bronze/domain=seo/dataset=seo_rankings/schema_version=1/ingest_date=<date>/source=book-seo-data/part-<batch>.parquet",
+        "lineage_file": "data/lake_lineage.json",
+        "scheduled_capture": "infra/scripts/data_lake/run_seo_capture.py"
+      },
+      "schema": {
+        "product_schema_version": "seo.v1",
+        "bronze_schema_version": "1",
+        "privacy_class": "public",
+        "retention_class": "operational"
+      },
+      "freshness": {
+        "stale_after_hours_default": 24,
+        "override_env": "STALE_AFTER_HOURS",
+        "stale_status": "stale"
+      },
+      "ui_consumer": {
+        "repository": "market-insights-web",
+        "catalog_files": [
+          "src/data-products/catalog.ts",
+          "js/data-products-browser.js"
+        ],
+        "base_url": "http://127.0.0.1:8106"
+      },
+      "status": "unverified",
+      "runtime_lineage_status": "unverified",
+      "gaps": [
+        "Contract path, run_data_product_stack.py and ingest_scraping_captures.py point at github/bookchaowalit/private/book-products/marketing-seo-ranking-data, but bookchaowalit/marketing-seo-ranking-data is PUBLIC and is checked out at github/bookchaowalit/public/book-products/marketing-seo-ranking-data; data_product_contract_guard.py reports 'producer missing' on the real layout, so the capture -> landing -> Bronze replay cannot resolve its source CSV.",
+        "run_seo_capture.py resolves the seo workspace to github/bookchaowalit/private/book-products/marketing-seo-ranking-data, which does not exist in the current layout."
+      ],
+      "evidence": [
+        {
+          "kind": "producer_config",
+          "claim": "lake source id equals contract repository",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 12,
+          "contains": "REPO_NAME = \"book-seo-data\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "product schema_version equals contract",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 14,
+          "contains": "SCHEMA_VERSION = \"seo.v1\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "API port default equals contract port",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 57,
+          "contains": "\"API_PORT\", \"8106\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake source is the repository name",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 22,
+          "contains": "LAKE_SOURCE = REPO_NAME"
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake domain",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 23,
+          "contains": "LAKE_DOMAIN = \"seo\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset seo_rankings",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 24,
+          "contains": "LAKE_DATASET_RANKINGS = \"seo_rankings\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset seo_rankings_history",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 25,
+          "contains": "LAKE_DATASET_HISTORY = \"seo_rankings_history\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "bronze schema version",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 26,
+          "contains": "LAKE_BRONZE_SCHEMA_VERSION = \"1\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "privacy class public",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 27,
+          "contains": "LAKE_PRIVACY_CLASS = \"public\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "producer registers a shared-adapter LakeProductContract",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/lake.py",
+          "line": 69,
+          "contains": "pa.LakeProductContract("
+        },
+        {
+          "kind": "lake_path_template",
+          "claim": "adapter Bronze dataset path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/product_adapter.py",
+          "line": 259,
+          "contains": "f\"bronze/domain={contract.domain}/dataset={dataset}/\""
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "replay capture spec for the primary dataset",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/ingest_scraping_captures.py",
+          "line": 171,
+          "contains": "private/book-products/marketing-seo-ranking-data/data/exported/seo_rankings.csv"
+        },
+        {
+          "kind": "schema",
+          "claim": "envelope builder used by every endpoint",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/store.py",
+          "line": 175,
+          "contains": "def envelope"
+        },
+        {
+          "kind": "freshness",
+          "claim": "stale threshold default (hours)",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 66,
+          "contains": "\"STALE_AFTER_HOURS\", \"24\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/records route",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/api.py",
+          "line": 164,
+          "contains": "\"/v1/records\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/history route",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/api.py",
+          "line": 210,
+          "contains": "\"/v1/history\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "POST /v1/refresh disabled by default",
+          "repo": "marketing-seo-ranking-data",
+          "path": "src/book_seo/config.py",
+          "line": 54,
+          "contains": "ALLOW_REFRESH = env_bool(\"ALLOW_REFRESH\", False)"
+        },
+        {
+          "kind": "producer_runtime",
+          "claim": "local stack registers product id, port and package",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_data_product_stack.py",
+          "line": 54,
+          "contains": "ProductRuntime(\"seo\", \"book-seo-data\", \"book_seo.api\", 8106"
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "scheduled capture runner invokes the producer ingest",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_seo_capture.py",
+          "line": 172,
+          "contains": "\"book_seo.ingest\","
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog lists product id",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 51,
+          "contains": "id: \"seo\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog schemaVersion",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 55,
+          "contains": "schemaVersion: \"seo.v1\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog port",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 56,
+          "contains": "port: 8106"
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "browser catalog port",
+          "repo": "market-insights-web",
+          "path": "js/data-products-browser.js",
+          "line": 58,
+          "contains": "port: 8106"
+        },
+        {
+          "kind": "lineage_gap",
+          "claim": "lake replay reads from the private/ path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/ingest_scraping_captures.py",
+          "line": 171,
+          "contains": "private/book-products/marketing-seo-ranking-data/data/exported/seo_rankings.csv"
+        },
+        {
+          "kind": "lineage_gap",
+          "claim": "local stack starts the product from the private/ path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_data_product_stack.py",
+          "line": 54,
+          "contains": "\"private/book-products/marketing-seo-ranking-data\""
+        },
+        {
+          "kind": "lineage_gap",
+          "claim": "scheduled seo capture runs from the private/ path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_seo_capture.py",
+          "line": 56,
+          "contains": "OWNER_ROOT / \"private/book-products/marketing-seo-ranking-data\""
+        }
+      ]
+    },
+    {
+      "id": "ai_tools",
+      "contract": {
+        "port": 8107,
+        "schema_version": "ai_tools.v1",
+        "repository": "book-ai-tools-data",
+        "package": "book_ai_tools"
+      },
+      "producer": {
+        "source": "tech-ai-tools-data",
+        "github": "bookchaowalit/tech-ai-tools-data",
+        "path": ".",
+        "package_dir": "src/book_ai_tools",
+        "ingest_module": "book_ai_tools.ingest",
+        "api_module": "book_ai_tools.api"
+      },
+      "lake": {
+        "runtime": "data-lake-pipelines:infra/scripts/data_lake",
+        "source": "book-ai-tools-data",
+        "domain": "ai-tools",
+        "datasets": [
+          "ai_tools",
+          "ai_tools_history"
+        ],
+        "records_dataset": "ai_tools",
+        "history_dataset": "ai_tools_history",
+        "bronze_path": "bronze/domain=ai-tools/dataset=ai_tools/schema_version=1/ingest_date=<date>/source=book-ai-tools-data/part-<batch>.parquet",
+        "lineage_file": "data/lake_lineage.json",
+        "scheduled_capture": null
+      },
+      "schema": {
+        "product_schema_version": "ai_tools.v1",
+        "bronze_schema_version": "1",
+        "privacy_class": "public",
+        "retention_class": "operational"
+      },
+      "freshness": {
+        "stale_after_hours_default": 24,
+        "override_env": "STALE_AFTER_HOURS",
+        "stale_status": "stale"
+      },
+      "ui_consumer": {
+        "repository": "market-insights-web",
+        "catalog_files": [
+          "src/data-products/catalog.ts",
+          "js/data-products-browser.js"
+        ],
+        "base_url": "http://127.0.0.1:8107"
+      },
+      "status": "unverified",
+      "runtime_lineage_status": "unverified",
+      "gaps": [
+        "Contract path, run_data_product_stack.py and ingest_scraping_captures.py point at github/bookchaowalit/private/book-ai/tech-ai-tools-data, but bookchaowalit/tech-ai-tools-data is PUBLIC and is checked out at github/bookchaowalit/public/book-ai/tech-ai-tools-data; data_product_contract_guard.py reports 'producer missing' on the real layout, so the capture -> landing -> Bronze replay cannot resolve its source CSV.",
+        "No scheduled capture runner in data-lake-pipelines invokes this producer's ingest; only the replay importer (ingest_scraping_captures.py) feeds Bronze."
+      ],
+      "evidence": [
+        {
+          "kind": "producer_config",
+          "claim": "lake source id equals contract repository",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 12,
+          "contains": "REPO_NAME = \"book-ai-tools-data\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "product schema_version equals contract",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 14,
+          "contains": "SCHEMA_VERSION = \"ai_tools.v1\""
+        },
+        {
+          "kind": "producer_config",
+          "claim": "API port default equals contract port",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 53,
+          "contains": "\"API_PORT\", \"8107\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake source is the repository name",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 21,
+          "contains": "LAKE_SOURCE = REPO_NAME"
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "lake domain",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 22,
+          "contains": "LAKE_DOMAIN = \"ai-tools\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset ai_tools",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 23,
+          "contains": "LAKE_DATASET_TOOLS = \"ai_tools\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "dataset ai_tools_history",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 24,
+          "contains": "LAKE_DATASET_HISTORY = \"ai_tools_history\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "bronze schema version",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 25,
+          "contains": "LAKE_BRONZE_SCHEMA_VERSION = \"1\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "privacy class public",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 26,
+          "contains": "LAKE_PRIVACY_CLASS = \"public\""
+        },
+        {
+          "kind": "lake_registration",
+          "claim": "producer registers a shared-adapter LakeProductContract",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/lake.py",
+          "line": 70,
+          "contains": "pa.LakeProductContract("
+        },
+        {
+          "kind": "lake_path_template",
+          "claim": "adapter Bronze dataset path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/product_adapter.py",
+          "line": 259,
+          "contains": "f\"bronze/domain={contract.domain}/dataset={dataset}/\""
+        },
+        {
+          "kind": "lake_ingest",
+          "claim": "replay capture spec for the primary dataset",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/ingest_scraping_captures.py",
+          "line": 193,
+          "contains": "private/book-ai/tech-ai-tools-data/data/exported/ai_tools.csv"
+        },
+        {
+          "kind": "schema",
+          "claim": "envelope builder used by every endpoint",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/store.py",
+          "line": 172,
+          "contains": "def envelope"
+        },
+        {
+          "kind": "freshness",
+          "claim": "stale threshold default (hours)",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 62,
+          "contains": "\"STALE_AFTER_HOURS\", \"24\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/records route",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/api.py",
+          "line": 164,
+          "contains": "\"/v1/records\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "GET /v1/history route",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/api.py",
+          "line": 210,
+          "contains": "\"/v1/history\""
+        },
+        {
+          "kind": "api_routes",
+          "claim": "POST /v1/refresh disabled by default",
+          "repo": "tech-ai-tools-data",
+          "path": "src/book_ai_tools/config.py",
+          "line": 50,
+          "contains": "ALLOW_REFRESH = env_bool(\"ALLOW_REFRESH\", False)"
+        },
+        {
+          "kind": "producer_runtime",
+          "claim": "local stack registers product id, port and package",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_data_product_stack.py",
+          "line": 55,
+          "contains": "ProductRuntime(\"ai_tools\", \"book-ai-tools-data\", \"book_ai_tools.api\", 8107"
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog lists product id",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 60,
+          "contains": "id: \"ai_tools\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog schemaVersion",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 64,
+          "contains": "schemaVersion: \"ai_tools.v1\""
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "catalog port",
+          "repo": "market-insights-web",
+          "path": "src/data-products/catalog.ts",
+          "line": 65,
+          "contains": "port: 8107"
+        },
+        {
+          "kind": "ui_consumer",
+          "claim": "browser catalog port",
+          "repo": "market-insights-web",
+          "path": "js/data-products-browser.js",
+          "line": 67,
+          "contains": "port: 8107"
+        },
+        {
+          "kind": "lineage_gap",
+          "claim": "lake replay reads from the private/ path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/ingest_scraping_captures.py",
+          "line": 193,
+          "contains": "private/book-ai/tech-ai-tools-data/data/exported/ai_tools.csv"
+        },
+        {
+          "kind": "lineage_gap",
+          "claim": "local stack starts the product from the private/ path",
+          "repo": "data-lake-pipelines",
+          "path": "infra/scripts/data_lake/run_data_product_stack.py",
+          "line": 55,
+          "contains": "\"private/book-ai/tech-ai-tools-data\""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# Gate evidence
+
+System-gate evidence for this platform boundary. Each document names the gate,
+the contract section it answers, the pinned sources, the gaps, and a proposed
+(not accepted) owner decision.
+
+| Issue | Gate | Evidence | Fixture | Check |
+|---|---|---|---|---|
+| BOO-152 | Verify each producer contract and lake lineage before connecting a UI to it. | [BOO-152-data-product-lineage.md](BOO-152-data-product-lineage.md) | [`fixtures/gates/data-product-lineage.json`](../../fixtures/gates/data-product-lineage.json) | `python3 scripts/check_data_product_lineage.py` (run by `scripts/check.sh`) |
