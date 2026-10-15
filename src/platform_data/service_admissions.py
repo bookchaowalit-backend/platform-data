@@ -41,7 +41,9 @@ def register_service_admissions(app, database, verifier, reserve_leg, finish_leg
             raise HTTPException(403, 'Admission actor is not authorized')
 
     def response(row):
-        return dict(id=str(row['id']), status=row['status'], units=row['units'],
+        return dict(id=str(row['id']),
+                    status='reserved' if row['status'] == 'pending' else row['status'],
+                    units=row['units'],
                     expires_at=row['expires_at'], available=row['available_units'])
 
     def read(conn, id, lock=False):
