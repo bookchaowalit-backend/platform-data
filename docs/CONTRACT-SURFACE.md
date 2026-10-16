@@ -6,7 +6,7 @@ This page documents the API, event, CLI, storage and configuration surface that
 listed there is missing from this page.
 
 - Platform: `data` (contract `book-platform.contract.v1`, API `v1`)
-- Status: `scaffolded`; source status: `current-implementation-in-solo-empire`
+- Status: `pilot`; shared data primitives implemented locally; lake source remains in `solo-empire`
 - Current implementation: `solo-empire` at `infra/scripts/data_lake`, `systems/ai-data/data-lake-architecture.md`
 - Depends on: `security`, `observability`
 
@@ -52,6 +52,35 @@ consumer.
 
 ## Out of scope
 
-No production provider integration, credential, database writer or customer
-payload lives in this repository. Record parity, privacy and rollback evidence
+No production provider integration, credential or customer payload lives in
+this repository. The new workspace runtime does not move lake state. Record parity, privacy and rollback evidence
 in the parent platform registry before any cutover.
+
+## Shared workspace runtime (local pilot)
+
+These added APIs are implemented in `src/platform_data/app.py` and use the
+installed core. Exact bounds, scopes and admission recovery semantics are
+defined in [runtime.md](runtime.md). Existing lake interfaces above remain
+unchanged and are not served by this package.
+
+| ID | Interface | Status |
+|---|---|---|
+| `data.http.cache` | GET/PUT/DELETE `/v1/cache/{key}` | pilot |
+| `data.http.counters` | POST `/v1/counters/{key}/increment` | pilot |
+| `data.http.documents` | GET `/v1/documents`, PUT/DELETE `/v1/documents/{key}` | pilot |
+| `data.http.quotas` | PUT `/v1/quotas/{key}` | pilot |
+| `data.http.reservations` | POST `/v1/reservations` | pilot |
+| `data.http.settle` | POST `/v1/reservations/{id}/settle` | pilot |
+| `data.http.release` | POST `/v1/reservations/{id}/release` | pilot |
+
+## Composite trusted service boundary
+
+| ID | Interface | Status |
+|---|---|---|
+| `data.http.service-admissions` | POST `/v1/service/admissions` | pilot |
+| `data.http.service-settle` | POST `/v1/service/admissions/{id}/settle` | pilot |
+| `data.http.service-release` | POST `/v1/service/admissions/{id}/release` | pilot |
+
+These routes require a system-workspace service JWT and a separately verified
+caller JWT. [runtime.md](runtime.md) defines the frozen envelope and conservative
+two-phase recovery. No unsigned workspace selection is supported.
