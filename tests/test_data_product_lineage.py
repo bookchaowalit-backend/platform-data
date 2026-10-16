@@ -39,11 +39,15 @@ consumers:
 """
 
 
+DECISION_DOC = "docs/gates/BOO-152-data-product-lineage.md"
+DECISION_HEADING = "## Owner decision — ACCEPTED (owner decision 2026-10-16)"
+
+
 class _RepoCopy(unittest.TestCase):
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
         self.root = Path(self._temp.name) / "repo"
-        for relative in (lineage.FIXTURE_RELATIVE, lineage.CONTRACT_RELATIVE, lineage.PIN_RELATIVE):
+        for relative in (lineage.FIXTURE_RELATIVE, lineage.CONTRACT_RELATIVE, lineage.PIN_RELATIVE, DECISION_DOC):
             (self.root / relative).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / relative, self.root / relative)
         self.fixture = json.loads((self.root / lineage.FIXTURE_RELATIVE).read_text(encoding="utf-8"))
@@ -236,6 +240,55 @@ class PrivateSourceTests(_RepoCopy):
         self.product("crypto")["evidence"][0]["repo"] = "architecture-docs"
         self.write_fixture()
         self.assertTrue(any("public source that hosted CI can read" in e for e in lineage.validate(self.root)))
+
+
+class OwnerDecisionTests(_RepoCopy):
+    def test_repository_records_accepted_decision_dated_2026_10_16(self) -> None:
+        decision = lineage.load_fixture(ROOT)["owner_decision"]
+        self.assertEqual(decision["status"], "accepted")
+        self.assertEqual(decision["date"], "2026-10-16")
+        self.assertEqual(decision["owner_answer_verbatim"], "ทั้งหมด ยกเว้น 140/256 (Recommended)")
+        self.assertEqual(
+            decision["accepted_option"],
+            "connect UI only to the 4 verified producers (crypto, stocks, fx, defi).",
+        )
+        self.assertEqual(decision["connect_ui"], ["crypto", "stocks", "fx", "defi"])
+        self.assertEqual(decision["keep_disconnected"], ["flights", "seo", "ai_tools"])
+        doc = (ROOT / DECISION_DOC).read_text(encoding="utf-8")
+        self.assertIn(DECISION_HEADING, doc)
+        self.assertNotIn("PROPOSED, NOT ACCEPTED", doc)
+
+    def test_missing_doc_marker_fails(self) -> None:
+        doc = self.root / DECISION_DOC
+        doc.write_text(doc.read_text(encoding="utf-8").replace(DECISION_HEADING, "## Owner decision"), encoding="utf-8")
+        self.assertIn(f"{DECISION_DOC}: missing heading {DECISION_HEADING!r}", lineage.validate(self.root))
+
+    def test_missing_date_fails(self) -> None:
+        del self.fixture["owner_decision"]["date"]
+        self.write_fixture()
+        self.assertIn(
+            "owner_decision.date (YYYY-MM-DD) is required for an accepted decision", lineage.validate(self.root)
+        )
+
+    def test_status_must_be_accepted_or_proposed(self) -> None:
+        self.fixture["owner_decision"]["status"] = "maybe"
+        self.write_fixture()
+        self.assertTrue(any("owner_decision.status" in e for e in lineage.validate(self.root)))
+
+    def test_connecting_unverified_product_fails(self) -> None:
+        decision = self.fixture["owner_decision"]
+        decision["connect_ui"].append("flights")
+        decision["keep_disconnected"].remove("flights")
+        self.write_fixture()
+        self.assertIn(
+            "owner_decision connects the UI to 'flights', which is not a verified product",
+            lineage.validate(self.root),
+        )
+
+    def test_missing_verbatim_answer_fails(self) -> None:
+        self.fixture["owner_decision"]["owner_answer_verbatim"] = ""
+        self.write_fixture()
+        self.assertIn("owner_decision.owner_answer_verbatim is required for an accepted decision", lineage.validate(self.root))
 
 
 @unittest.skipIf(shutil.which("git") is None, "git is required for source verification tests")

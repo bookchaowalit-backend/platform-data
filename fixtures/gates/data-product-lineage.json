@@ -4,6 +4,32 @@
   "gate": "Verify each producer contract and lake lineage before connecting a UI to it.",
   "registry_entry": "solo-empire:repository-catalog/registries/system-repositories.yaml#data-products",
   "verification_scope": "Static only: every evidence line was read at the pinned commit listed in sources. 'verified' means producer config, lake registration, Bronze path, replay/capture spec, freshness default, API routes and the market-insights-web catalog agree at those commits. No lake object, lake_lineage.json, running API or UI was observed, so runtime_lineage_status is 'unverified' for every product.",
+  "owner_decision": {
+    "status": "accepted",
+    "date": "2026-10-16",
+    "owner_answer_verbatim": "ทั้งหมด ยกเว้น 140/256 (Recommended)",
+    "relayed_via": "parent coordinating session local_a6dedf75",
+    "accepted_option": "connect UI only to the 4 verified producers (crypto, stocks, fx, defi).",
+    "ui_consumer": "market-insights-web",
+    "connect_ui": [
+      "crypto",
+      "stocks",
+      "fx",
+      "defi"
+    ],
+    "keep_disconnected": [
+      "flights",
+      "seo",
+      "ai_tools"
+    ],
+    "recorded_only": "No UI connection, runtime, registry or status change is made by recording this decision.",
+    "doc": "docs/gates/BOO-152-data-product-lineage.md",
+    "open": [
+      "gap 1 fix route for flights/seo/ai_tools (v3 freeze with public/ paths or move repos back to private/)",
+      "gap 3 runtime lineage evidence (Bronze commit manifest per dataset, lake_lineage.json)",
+      "gap 4 registry source_paths -> data-lake-pipelines; gap 5 single canonical consumers block"
+    ]
+  },
   "contract": {
     "freeze_id": "data-product-contracts-v2",
     "vendored_path": "contracts/vendor/data-product-contracts-v2.yaml",

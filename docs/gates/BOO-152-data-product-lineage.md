@@ -144,24 +144,40 @@ It does not touch lake lineage. This change edits none of those files. It only a
 and one line in `scripts/check.sh`, so the two should merge cleanly. Because PR #1 rewrites
 `README.md`, the link to this document lives in [`docs/gates/README.md`](README.md) instead.
 
-## Owner decision — PROPOSED, NOT ACCEPTED
+## Owner decision — ACCEPTED (owner decision 2026-10-16)
 
-The owner needs to decide on the following. Nothing below has been accepted or acted on.
+Owner's answer, verbatim: "ทั้งหมด ยกเว้น 140/256 (Recommended)". This accepts the
+recommended option on every pending gate decision except BOO-140 and BOO-256. The answer was
+relayed to this change through the parent coordinating session (`local_a6dedf75`).
 
-1. Allow `market-insights-web` to connect to **crypto, stocks, fx and defi** only, at the
-   pinned commits, on the basis of static lineage. Each of these UI connections should show
-   `stale` when data is older than 24h until runtime lineage has been checked (gap 3).
-2. Keep **flights, seo and ai_tools** disconnected until gap 1 is fixed. That fix is either a
-   v3 contract freeze with `public/…` paths plus a matching update to `data-lake-pipelines`, or
-   a decision to move those repositories back to `private/`. After the fix, re-run
-   `check_data_product_lineage.py --book-dev` and the producer guard.
-3. Before switching any of these products from `unverified` to `verified` in the fixture,
-   record runtime evidence from a disposable lake: one Bronze commit manifest per dataset and
-   one `lake_lineage.json`.
-4. Pick one canonical consumers block for the v2 contract (gap 5). Update the registry
-   `source_paths` to `data-lake-pipelines` (gap 4).
+Accepted option for BOO-152 (text kept exactly as relayed):
 
-No status change, runtime move, cutover or UI connection is made or approved by this change.
+> connect UI only to the 4 verified producers (crypto, stocks, fx, defi).
+
+What this decision means for this gate:
+
+1. **Approved to connect.** `market-insights-web` may connect to **crypto, stocks, fx and defi**
+   only, at the pinned commits, on the basis of static lineage. Each of these UI connections
+   should show `stale` when data is older than 24h until runtime lineage has been checked
+   (gap 3).
+2. **Stay off.** **flights, seo and ai_tools** stay disconnected (decision: "only the 4"). They
+   remain disconnected until gap 1 is fixed.
+
+This change only records the decision. No UI was connected and no runtime, registry or
+status was changed. The actual connection is separate work in `market-insights-web`.
+
+### Still open (not decided by the owner)
+
+- **How to fix gap 1.** Either a v3 contract freeze with `public/…` paths plus a matching
+  update to `data-lake-pipelines`, or moving those repositories back to `private/`. After the
+  fix, re-run `check_data_product_lineage.py --book-dev` and the producer guard.
+- **Runtime lineage evidence (gap 3).** Capture it from a disposable lake: one Bronze commit
+  manifest per dataset and one `lake_lineage.json`. Do this before switching any product to
+  `verified` or marking runtime lineage verified.
+- **Contract and registry cleanup.** Pick one canonical consumers block for the v2 contract
+  (gap 5), and update the registry `source_paths` to `data-lake-pipelines` (gap 4).
+- **Out of scope here:** gap 2 (no scheduled capture for flights and ai_tools), gap 6
+  (news/discovery) and gap 7 (the portfolio consumer).
 
 ## Reproduce
 
