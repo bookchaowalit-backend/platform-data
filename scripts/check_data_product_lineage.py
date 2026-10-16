@@ -322,6 +322,53 @@ def validate(root: Path = ROOT) -> list[str]:
                 errors.append(f"{where}: marked verified but carries lineage_gap evidence")
         elif status == "unverified" and not gaps:
             errors.append(f"{where}: marked unverified without naming a gap")
+    errors.extend(validate_owner_decision(root, fixture, by_id))
+    return errors
+
+
+DECISION_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def validate_owner_decision(
+    root: Path, fixture: dict[str, Any], by_id: dict[str, dict[str, Any]]
+) -> list[str]:
+    """The recorded owner decision may only connect the UI to verified products."""
+
+    errors: list[str] = []
+    decision = fixture.get("owner_decision")
+    if not isinstance(decision, dict):
+        return ["owner_decision is missing from the fixture"]
+    status, date = decision.get("status"), decision.get("date")
+    if status not in ("proposed", "accepted"):
+        errors.append(f"owner_decision.status must be 'proposed' or 'accepted', got {status!r}")
+    if status == "accepted":
+        if not isinstance(date, str) or not DECISION_DATE_RE.match(date):
+            errors.append("owner_decision.date (YYYY-MM-DD) is required for an accepted decision")
+        for key in ("owner_answer_verbatim", "relayed_via", "accepted_option"):
+            if not isinstance(decision.get(key), str) or not decision[key].strip():
+                errors.append(f"owner_decision.{key} is required for an accepted decision")
+    connect = decision.get("connect_ui")
+    keep = decision.get("keep_disconnected")
+    if not isinstance(connect, list) or not isinstance(keep, list):
+        return errors + ["owner_decision.connect_ui and keep_disconnected must be lists"]
+    for pid in connect:
+        if by_id.get(pid, {}).get("status") != "verified":
+            errors.append(f"owner_decision connects the UI to {pid!r}, which is not a verified product")
+    if set(connect) & set(keep):
+        errors.append("owner_decision lists a product as both connected and disconnected")
+    if set(connect) | set(keep) != set(by_id):
+        errors.append("owner_decision must place every fixture product in connect_ui or keep_disconnected")
+    doc = root / str(decision.get("doc", ""))
+    if status == "accepted" and isinstance(date, str):
+        marker = f"## Owner decision — ACCEPTED (owner decision {date})"
+        try:
+            text = doc.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            text = ""
+        if marker not in text:
+            errors.append(f"{decision.get('doc')}: missing heading {marker!r}")
+        elif decision.get("owner_answer_verbatim", "") not in text:
+            errors.append(f"{decision.get('doc')}: does not quote the owner's verbatim answer")
     return errors
 
 
