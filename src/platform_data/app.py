@@ -4,10 +4,12 @@ from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 from fastapi import Depends, HTTPException, Path, Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from platform_backend_core import Database, Principal, TokenVerifier, require_scope
+from platform_backend_core import create_app as core_app
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
-from platform_backend_core import Database, Principal, TokenVerifier, create_app as core_app, require_scope
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from .migrations import MIGRATIONS
 
 Key = Annotated[str, Path(min_length=1, max_length=200, pattern=r'^[^\x00]+$')]

@@ -3,12 +3,13 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import psycopg
-from psycopg import sql
 import pytest
 from fastapi.testclient import TestClient
 from platform_backend_core import Database
+from psycopg import sql
+from test_api import put_policy, reserve, runtime
+
 from platform_data.app import create_app
-from test_api import runtime, put_policy, reserve
 
 
 @pytest.fixture

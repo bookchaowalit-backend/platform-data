@@ -4,6 +4,7 @@ import os
 from uuid import UUID
 
 from platform_backend_core import Database, MigrationRunner, TokenVerifier
+
 from .app import create_app
 from .migrations import MIGRATIONS
 

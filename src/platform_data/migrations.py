@@ -40,7 +40,7 @@ CREATE POLICY workspace_isolation ON {table}
 USING (workspace_id = nullif(current_setting('app.workspace_id',true),'')::uuid)
 WITH CHECK (workspace_id = nullif(current_setting('app.workspace_id',true),'')::uuid);
 ''' for table in ('data_cache','data_counters','data_documents','data_quota_policies','data_quota_buckets','data_reservations'))
-MIGRATIONS = (Migration('001_data_primitives', _TABLES + _RLS),)
+MIGRATIONS: tuple[Migration, ...] = (Migration('001_data_primitives', _TABLES + _RLS),)
 
 _SERVICE_ADMISSIONS = '''
 CREATE TABLE data_service_admissions (

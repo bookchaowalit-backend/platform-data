@@ -10,3 +10,8 @@ build/
 
 *.egg-info/
 wheels/
+.venv/
+.coverage
+.coverage.*
+.mypy_cache/
+.ruff_cache/

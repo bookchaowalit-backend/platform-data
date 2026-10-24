@@ -7,8 +7,8 @@ conservative and recoverable without holding a pooled connection across legs.
 from uuid import UUID, uuid4
 
 from fastapi import Depends, HTTPException, Request
-from pydantic import Field
 from platform_backend_core import AuthenticationError, Principal, require_scope
+from pydantic import Field
 
 from .app import Body, Reservation, Settlement, one
 

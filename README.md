@@ -40,9 +40,14 @@ explicit disposable local PostgreSQL admin DSN. They create unique databases
 and unprivileged runtime roles; missing `PLATFORM_TEST_DSN` fails, never skips.
 
 ```bash
-python -m pip install -e '.[test]'
+uv sync --frozen --all-extras   # uv.lock; core comes from its reviewed Git commit
+ruff check . && mypy
 PLATFORM_TEST_DSN="$LOCAL_DISPOSABLE_ADMIN_DSN" python -m pytest -q
 ```
+
+CI runs the same through the shared `ci-python` workflow (Ruff, mypy, the whole
+suite against a disposable PostgreSQL under a coverage gate, wheel build) next
+to the contract and lineage jobs and the shared security workflow.
 
 The schema and sha256 pin are unchanged. `scripts/check_schema_pin.py
 --canonical ../platform-backend-core` also compares the sibling canonical

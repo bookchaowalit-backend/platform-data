@@ -171,8 +171,8 @@ def process_reserves(args):
 
 
 def test_independent_processes_share_capacity(runtime):
-    from concurrent.futures import ProcessPoolExecutor
     import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
     c,a,b,db,t,v,_=runtime
     # Processes receive only a configured public PEM, never the signing key.
     key=rsa.generate_private_key(public_exponent=65537,key_size=2048)

@@ -184,7 +184,7 @@ def validate(root: Path = ROOT) -> list[str]:
 
     contract_bytes = contract_path.read_bytes()
     pinned, pin_error = read_pin(root / PIN_RELATIVE)
-    if pin_error:
+    if pin_error or pinned is None:
         errors.append(f"{PIN_RELATIVE}: {pin_error}")
     elif sha256_bytes(contract_bytes) != pinned:
         errors.append(
