@@ -7,13 +7,12 @@ readiness, bounded HTTP lifecycle and migration runner. No copied auth/DB code.
 
 ## Installation and local launch
 
-Install a reviewed core 0.1.0 wheel, then this package; deployed dependencies
-must be immutable release artifacts, never paths inside the registry hub.
-For local development, installing the sibling core editable is supported.
+Dependencies come from `uv.lock`, which pins `platform-backend-core` 0.1.0 to
+its reviewed Git commit (`[tool.uv.sources]`); deployed dependencies are never
+paths inside the registry hub. Nothing is published to PyPI.
 
 ```bash
-python -m pip install /reviewed-wheels/platform_backend_core-0.1.0-py3-none-any.whl
-python -m pip install -e '.[test]'
+uv sync --frozen --all-extras   # the same locked environment CI installs
 # Operator supplies explicit environment; never discover credential files.
 DATABASE_URL="$LOCAL_DDL_DSN" python -m platform_data migrate
 DATABASE_URL="$LOCAL_RUNTIME_DSN" JWT_ISSUER="$ISSUER" JWT_AUDIENCE="$AUDIENCE" \
@@ -54,11 +53,35 @@ on `platform_schema_migrations`. Keep migration DDL/ownership separate.
 Never grant a runtime role BYPASSRLS or superuser. All tenant tables have
 workspace-first primary keys, FORCE RLS, USING and WITH CHECK.
 
-Docker builds require an explicit `wheels/` build-context directory containing
-core 0.1.0 and every transitive runtime/build wheel (including setuptools).
-The Dockerfile installs offline and runs as uid/gid 10001; it performs no
-migration. Build the bundle outside the service checkout, copy it as an ignored
-release input, and include its immutable checksums in the release manifest.
+### Container image
+
+`docker build .` works from a clean checkout; no pre-staged `wheels/` bundle is
+needed. The `Dockerfile` is two stages:
+
+1. `build` (`python:3.12-slim` plus `git` and uv 0.13.1, the CI version, pinned
+   by image digest): `uv sync --frozen --no-dev --no-editable` installs this
+   service and every runtime dependency from `uv.lock` into `/opt/venv`, so
+   `platform-backend-core` comes from the same reviewed commit
+   (`d00e0119c2e47da3942d9c7b4b88828953f8bc5a`) CI installs, with the lock's hashes.
+   No test or dev extras are installed.
+2. `runtime` (`python:3.12-slim`, no git, no uv): copies only `/opt/venv`, runs
+   as UID/GID `65532`, `PORT=8080`, and keeps
+   `CMD ["python", "-m", "platform_data", "serve"]`. It performs no migration:
+   run `migrate` as a separate one-off with the DDL-role `DATABASE_URL` (same
+   image, command override).
+
+`.dockerignore` keeps `.git`, `.venv`, tests, build output and `.env*` out of the
+build context. CI job `image` in `check.yml` runs `docker build` on every push and
+pull request, then checks that the image imports the service and runs as a
+non-root user. It never pushes or deploys. `tests/test_build_hygiene.py` (part of
+`scripts/check.sh`) fails if the Dockerfile copies a git-ignored path, stops being
+multi-stage, resolves anything outside `uv.lock` (`pip install`, a second core
+pin), runs the final stage as anything but `65532:65532` or changes the CMD, if
+`[tool.uv.sources]` and `uv.lock` disagree on the core commit, if CI stops
+building the image, or if any workflow `uses:` is not pinned to a 40-hex commit
+SHA (tag in a trailing comment). Upgrading the core means changing the commit in
+`[tool.uv.sources]` and re-locking (`uv lock`).
+
 No image publication or deployment is implied. The local server bounds HTTP
 concurrency to 64, keepalive to five seconds, graceful shutdown to 30 seconds,
 and disables URL access logging. Core pool defaults to eight connections per
@@ -185,7 +208,7 @@ setuptools before its offline no-isolation build. No Docker build is claimed.
 
 ## Staged rollback and reconciliation
 
-Before enabling consumers, retain the previous image, immutable wheel bundle,
+Before enabling consumers, retain the previous image digest, its `uv.lock`,
 release manifest and a tested database backup. Stop new admissions and disable
 the explicitly configured consumer adapter before rolling the service image
 back. Do not drop tables, run destructive down migrations, erase reservations
@@ -280,3 +303,28 @@ verification: 72 tests (36 runtime, 36 original), no skips. The initial extensio
 RED run had eight missing-constructor setup errors and a direct missing-route
 failure before implementation. Local environment and deployment limitations
 remain those listed above.
+
+## Build hygiene 2026-10-29 (branch `build-hygiene`)
+
+Ported from `platform-developer` `8047108`, adapted to this repository's `uv.lock`:
+
+1. The `Dockerfile` copied the git-ignored `wheels/` bundle, so `docker build .`
+   failed on a fresh clone. It is now the two-stage `uv sync --frozen` build under
+   "Container image"; the runtime user moved from `10001` to `65532:65532` (the
+   platform-wide non-root UID), and CI job `image` builds it without pushing.
+2. `check.yml` used `actions/checkout@v4` and `actions/setup-python@v5` by tag.
+   Both are pinned to commit SHAs (`11d5960a...` = v4, `a26af69b...` = v5;
+   lightweight tags, resolved with `gh api .../git/ref/tags/...`), tag in a comment.
+
+RED (tests written first, run on the old files, Python 3.12):
+`python -m unittest tests.test_build_hygiene` failed 7 of 9 (git-ignored `wheels/`
+copied; no `docker build` in CI; no `uv.lock`/`uv sync --frozen`; `.dockerignore`
+without `.venv`; one `FROM`; runtime user `10001:10001`; unpinned actions). The
+checker self-test and the lock/`[tool.uv.sources]` agreement passed.
+
+GREEN: `bash scripts/check.sh` 78 unit tests OK; `ruff check .` and `mypy` clean;
+`python -m pytest -q --cov` with a local PostgreSQL (`pgserver`) 114 passed,
+coverage 87% (gate 86). The build stage was rehearsed without Docker
+(`uv sync --frozen --no-dev --no-editable` into a fresh venv from a clean copy,
+then `import platform_backend_core, platform_data.app`); the image itself is
+verified only by the CI `image` job. Nothing was pushed to a registry or deployed.
