@@ -122,21 +122,27 @@ def create_app(database: Database, verifier: TokenVerifier, *, system_workspace:
         raise ValueError("system_workspace must be a UUID")
     app=core_app('platform-data',database,verifier,max_body_bytes=1048576)
 
+    tables = ['public.' + name for name in ('data_cache', 'data_counters', 'data_documents', 'data_quota_policies',
+                                            'data_quota_buckets', 'data_reservations', 'data_service_admissions')]
+    expected = {migration.version: migration.checksum for migration in MIGRATIONS}
+
     def schema_ready():
+        # One statement: every query is a network round trip, and the service may run far from its
+        # database. Privileges are checked one operation at a time (a comma list means ANY), by oid
+        # so a missing table yields NULL (-> false) instead of an error.
         with database.transaction(UUID(int=0)) as conn:
+            row = one(conn, """
+                SELECT (SELECT coalesce(json_agg(json_build_array(version, checksum)), '[]'::json)
+                          FROM platform_schema_migrations WHERE namespace = %s) AS history,
+                       coalesce((SELECT bool_and(coalesce(
+                                    has_table_privilege(to_regclass(t), 'SELECT')
+                                    AND has_table_privilege(to_regclass(t), 'INSERT')
+                                    AND has_table_privilege(to_regclass(t), 'UPDATE')
+                                    AND has_table_privilege(to_regclass(t), 'DELETE'), false))
+                                  FROM unnest(%s::text[]) AS t), false)
+                       AND has_schema_privilege('public', 'USAGE') AS ok""", ('data', tables))
             # Shared migration history contains release metadata, never tenant data.
-            history = dict(conn.execute('SELECT version,checksum FROM platform_schema_migrations WHERE namespace=%s', ('data',)).fetchall())
-            expected = {migration.version: migration.checksum for migration in MIGRATIONS}
-            tables = ('data_cache', 'data_counters', 'data_documents', 'data_quota_policies', 'data_quota_buckets', 'data_reservations', 'data_service_admissions')
-            if history != expected:
-                return False
-            for table in tables:
-                if not one(conn, 'SELECT to_regclass(%s) IS NOT NULL AS ok', ('public.' + table,))['ok']:
-                    return False
-                for privilege in ('SELECT', 'INSERT', 'UPDATE', 'DELETE'):
-                    if not one(conn, 'SELECT has_table_privilege(%s,%s) AS ok', ('public.' + table, privilege))['ok']:
-                        return False
-            return one(conn, "SELECT has_schema_privilege('public','USAGE') AS ok")['ok']
+            return dict(map(tuple, row['history'])) == expected and row['ok'] is True
     app.state.readiness_checks['data_schema']=schema_ready
 
     @app.put('/v1/cache/{key}')
