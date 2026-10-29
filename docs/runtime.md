@@ -26,6 +26,9 @@ behavior. The public configuration variable is not a filename to discover.
 to 8080. Migration uses `DATABASE_URL` for the separately injected DDL role;
 serve uses the runtime role. Never serve as a database superuser/table bypass
 role. Migration errors and configuration failures do not print DSNs or tokens.
+Optional `SENTRY_DSN` turns on error reporting (unset = off); see
+`src/platform_data/_sentry.py` for what is scrubbed. `SENTRY_ENVIRONMENT` defaults to
+`production`.
 
 Public Python entry points:
 
