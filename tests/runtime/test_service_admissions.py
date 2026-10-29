@@ -1,4 +1,5 @@
 """Composite service trust and durable two-phase recovery against real PostgreSQL."""
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
@@ -142,12 +143,42 @@ def test_tenant_failure_retains_global_and_later_recovers(service):
 def test_readiness_checks_each_write_privilege(service):
     c,pair,test,*_=service
     for table in ('data_cache','data_counters','data_documents','data_quota_policies','data_quota_buckets','data_reservations','data_service_admissions'):
-        for privilege in ('INSERT','UPDATE','DELETE'):
+        for privilege in ('SELECT','INSERT','UPDATE','DELETE'):
             with psycopg.connect(test.admin_dsn) as conn:
                 conn.execute(sql.SQL('REVOKE {} ON {} FROM {}').format(sql.SQL(privilege),sql.Identifier(table),sql.Identifier(test.runtime_role)))
             assert c.get('/readyz').status_code==503
             with psycopg.connect(test.admin_dsn) as conn:
                 conn.execute(sql.SQL('GRANT {} ON {} TO {}').format(sql.SQL(privilege),sql.Identifier(table),sql.Identifier(test.runtime_role)))
+    assert c.get('/readyz').status_code==200
+
+
+def test_schema_readiness_is_one_round_trip(service, monkeypatch):
+    # Deployed far from its database, each statement costs a full network round trip,
+    # so the schema check must not issue one query per table and privilege.
+    c,*_=service
+    assert c.get('/readyz').status_code==200
+    statements=[]
+    caller=threading.get_ident()
+    original=psycopg.Cursor.execute
+    def counting(self,query,*args,**kwargs):
+        if threading.get_ident()==caller:  # the pool may configure new connections in its own threads
+            statements.append(query)
+        return original(self,query,*args,**kwargs)
+    monkeypatch.setattr(psycopg.Cursor,'execute',counting)
+    assert c.app.state.readiness_checks['data_schema']() is True
+    # Pool housekeeping (connection check, session setup) and the core transaction's
+    # set_config(app.workspace_id) come first; count what the check itself sends after them.
+    start=max(i for i,q in enumerate(statements) if 'app.workspace_id' in str(q))
+    assert len(statements[start+1:])==1, statements[start+1:]
+
+
+def test_readiness_fails_when_a_table_is_missing(service):
+    c,pair,test,*_=service
+    with psycopg.connect(test.admin_dsn) as conn:
+        conn.execute('ALTER TABLE data_cache RENAME TO data_cache_moved')
+    assert c.get('/readyz').status_code==503
+    with psycopg.connect(test.admin_dsn) as conn:
+        conn.execute('ALTER TABLE data_cache_moved RENAME TO data_cache')
     assert c.get('/readyz').status_code==200
 
 
