@@ -2,13 +2,13 @@
 
 Offline: the request fails before touching the database; Sentry uses an in-memory transport.
 """
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 import sentry_sdk
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from platform_backend_core import Principal
+from platform_backend_core import Database, Principal, TokenVerifier
 
 from platform_data import _sentry
 
@@ -53,7 +53,7 @@ def test_a_server_500_reaches_sentry_scrubbed(monkeypatch):
         def broken(*args, **kwargs):
             raise RuntimeError(message)
         monkeypatch.setattr(_Database, 'transaction', broken)
-        with TestClient(create_app(_Database(), _Verifier())) as c:
+        with TestClient(create_app(cast(Database, _Database()), cast(TokenVerifier, _Verifier()))) as c:
             r = c.get('/v1/documents?q=x', headers={'Authorization': 'Bearer fixture'})
         assert r.status_code == 500 and r.json() == {'detail': 'internal server error'}
         sentry_sdk.flush()
