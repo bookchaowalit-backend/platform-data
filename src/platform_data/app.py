@@ -9,7 +9,9 @@ from platform_backend_core import create_app as core_app
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from starlette.middleware import Middleware
 
+from ._sentry import CaptureErrors
 from .migrations import MIGRATIONS
 
 Key = Annotated[str, Path(min_length=1, max_length=200, pattern=r'^[^\x00]+$')]
@@ -121,6 +123,8 @@ def create_app(database: Database, verifier: TokenVerifier, *, system_workspace:
     if system_workspace is not None and not isinstance(system_workspace, UUID):
         raise ValueError("system_workspace must be a UUID")
     app=core_app('platform-data',database,verifier,max_body_bytes=1048576)
+    # Last in the list = innermost: inside the core boundary that turns errors into a 500.
+    app.user_middleware.append(Middleware(CaptureErrors))
 
     tables = ['public.' + name for name in ('data_cache', 'data_counters', 'data_documents', 'data_quota_policies',
                                             'data_quota_buckets', 'data_reservations', 'data_service_admissions')]
