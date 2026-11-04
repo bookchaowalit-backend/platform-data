@@ -30,6 +30,8 @@
 | 21 | Incident response | done | [21-incident-response.md](21-incident-response.md) | runtime.md rollback, ops record, central ADR-0002 |
 | 22 | DORA | done (recovery = cannot compute; deploy↔commit mapping inferred) | [22-dora.md](22-dora.md) | Railway list-deployments, git log, gh run list |
 
+สรุปสถาปัตยกรรมระดับ docpack: [`DOCPACK/02-architecture.md`](../../DOCPACK/02-architecture.md) (2026-11-04)
+
 ## Reused docs (ลิงก์ ไม่คัดลอก)
 
 - API, bounds, admission semantics, rollback: [docs/runtime.md](../runtime.md) — ใช้ใน 03, 09–12, 14, 21
