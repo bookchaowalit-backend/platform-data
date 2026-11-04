@@ -10,7 +10,7 @@ stateDiagram-v2
   pending --> settled: settle actual_units
   pending --> released: release before expires_at, refund
   pending --> expired: lazy expire on settle, release or replay after expires_at
-  expired --> settled: late settle, only if operation is None (an expired release intent returns 409) reconciles actual
+  expired --> settled: late settle reconciles actual (allowed even after a release, test_expiry_stays_charged_and_late_settlement)
   expired --> expired: release, no refund
   settled --> settled: same actual repeats
   released --> released: duplicate release
@@ -31,7 +31,7 @@ stateDiagram-v2
   pending --> released: operation release, both legs released
   pending --> expired: release after earliest expiry, no refund, available 0
   pending --> expired: release where a leg returns expired
-  expired --> settled: late settle
+  expired --> settled: late settle, only if operation is None (a stored release intent returns 409)
   settled --> [*]
   released --> [*]
 ```
