@@ -34,6 +34,10 @@ def main():
         import uvicorn
         system = os.environ.get('PLATFORM_SYSTEM_WORKSPACE_ID')
         app = create_app(Database(dsn), verifier, system_workspace=UUID(system) if system else None)
+        from . import gateway
+
+        # SPEC-002 (platform-api-gateway): only calls that came through the edge gateway.
+        gateway.install(app, gateway.GatewayCheck.from_env('platform-data'))
     except Exception:
         parser.exit(1, 'data configuration or migration failed; inspect trusted configuration and database history\n')
     uvicorn.run(app, host='0.0.0.0', port=port, access_log=False,
