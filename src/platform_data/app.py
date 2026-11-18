@@ -4,6 +4,7 @@ from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 from fastapi import Depends, HTTPException, Path, Query
+from fastapi.routing import APIRoute
 from platform_backend_core import Database, Principal, TokenVerifier, require_scope
 from platform_backend_core import create_app as core_app
 from psycopg.rows import dict_row
@@ -13,6 +14,9 @@ from starlette.middleware import Middleware
 
 from ._sentry import CaptureErrors
 from .migrations import MIGRATIONS
+
+# Not public: the docs UI, and metrics (re-added below behind metrics:read). /openapi.json stays public.
+NOT_PUBLIC = frozenset({'/docs', '/docs/oauth2-redirect', '/redoc', '/metrics'})
 
 Key = Annotated[str, Path(min_length=1, max_length=200, pattern=r'^[^\x00]+$')]
 Positive = Annotated[int, Field(strict=True, ge=1, le=10**12)]
@@ -125,6 +129,11 @@ def create_app(database: Database, verifier: TokenVerifier, *, system_workspace:
     app=core_app('platform-data',database,verifier,max_body_bytes=1048576)
     # Last in the list = innermost: inside the core boundary that turns errors into a 500.
     app.user_middleware.append(Middleware(CaptureErrors))
+    # Only probes, the API and its schema are public: no docs UI, and metrics need a scope.
+    metrics=next(r.endpoint for r in app.router.routes if isinstance(r,APIRoute) and r.path=='/metrics')
+    app.router.routes[:]=[r for r in app.router.routes if getattr(r,'path',None) not in NOT_PUBLIC]
+    app.docs_url=app.redoc_url=None
+    app.add_api_route('/metrics',metrics,methods=['GET'],include_in_schema=False,dependencies=[Depends(require_scope('metrics:read'))])
 
     tables = ['public.' + name for name in ('data_cache', 'data_counters', 'data_documents', 'data_quota_policies',
                                             'data_quota_buckets', 'data_reservations', 'data_service_admissions')]

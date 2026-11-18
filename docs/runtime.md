@@ -44,8 +44,9 @@ app = create_app(Database(runtime_dsn), configured_verifier)
 migration: append another version. Readiness checks compare every migration
 version/checksum in namespace `data` and check all seven tables, using
 `app.state.readiness_checks`. Database unavailability, missing history, drift
-or missing tables yield generic `/readyz` 503. `/healthz` and `/metrics` come
-from core. Mutation routes also fail closed with generic errors on missing DB
+or missing tables yield generic `/readyz` 503. `/healthz` comes from core. `/metrics`
+requires a bearer token with the `metrics:read` scope; the docs UI (`/docs`, `/redoc`) is not served and
+`/openapi.json` stays public (read by the MCP hub). Mutation routes also fail closed with generic errors on missing DB
 state. Startup does not create tables.
 
 After explicit migrations grant runtime schema USAGE, SELECT/INSERT/UPDATE/

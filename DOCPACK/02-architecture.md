@@ -68,7 +68,7 @@ flowchart LR
 
 | Container / module | เทคโนโลยี | หน้าที่ | หลักฐาน |
 |---|---|---|---|
-| data-api (`serve`) | Python 3.12, FastAPI, uvicorn, core `21d5f44` | cache `PUT/GET/DELETE /v1/cache/{key}`, `POST /v1/counters/{key}/increment`, documents `PUT/DELETE /v1/documents/{key}` + `GET /v1/documents?q=`, `PUT /v1/quotas/{key}`, reservations `POST /v1/reservations`, `/{id}/settle`, `/{id}/release`; `/healthz`, `/readyz`, `/metrics` จาก core | `app.py` |
+| data-api (`serve`) | Python 3.12, FastAPI, uvicorn, core `21d5f44` | cache `PUT/GET/DELETE /v1/cache/{key}`, `POST /v1/counters/{key}/increment`, documents `PUT/DELETE /v1/documents/{key}` + `GET /v1/documents?q=`, `PUT /v1/quotas/{key}`, reservations `POST /v1/reservations`, `/{id}/settle`, `/{id}/release`; `/healthz`, `/readyz` จาก core, `/openapi.json` (public), `/metrics` (scope `metrics:read`); `/docs` และ `/redoc` ไม่ถูก serve | `app.py` |
 | `service_admissions` | module ใน app เดียวกัน | `POST /v1/service/admissions` (+ settle/release): composite admission สอง leg (caller workspace + global policy ของ system workspace) | `service_admissions.py` |
 | `migrate` | CLI | `MigrationRunner(namespace='data')` apply `001_data_primitives`, `002_service_admissions` ด้วย `DATABASE_URL` ของ DDL role | `__main__.py`, `migrations.py` |
 | `_sentry` | sentry-sdk | opt-in เมื่อมี `SENTRY_DSN` | `_sentry.py` |

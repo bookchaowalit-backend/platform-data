@@ -262,3 +262,16 @@ def test_cli_explicit_migrate_is_repeatable(runtime):
     result=subprocess.run([__import__('sys').executable,'-m','platform_data','migrate'],env={'PATH':os.environ['PATH'],'DATABASE_URL':t.admin_dsn},capture_output=True,text=True)
     assert result.returncode==0
     assert result.stdout.strip()=='applied 0 data migrations'
+
+
+def test_docs_ui_is_not_served_and_metrics_needs_metrics_read(runtime):
+    c,a,*_,headers=runtime
+    # The docs UI is gone; the OpenAPI schema stays public for the MCP hub's describe_cell.
+    for path in ('/docs','/docs/oauth2-redirect','/redoc'):
+        assert c.get(path).status_code==404, path
+    assert c.get('/openapi.json').status_code==200
+    assert c.get('/healthz').status_code==200
+    # /metrics needs a verified token carrying metrics:read.
+    assert c.get('/metrics').status_code==401
+    assert c.get('/metrics',headers=a).status_code==403
+    assert c.get('/metrics',headers=headers(uuid4(),scopes='metrics:read')).status_code==200
