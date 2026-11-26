@@ -8,11 +8,13 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -353,6 +355,33 @@ class SourceVerificationTests(_RepoCopy):
         # The fixture records the real canonical sha256, not the synthetic copy's.
         self.assertEqual(len(errors), 1)
         self.assertIn("canonical contract sha256", errors[0])
+
+    def _snapshot(self, content: bytes) -> Path:
+        snap = Path(self._temp.name) / "snapshot"
+        (snap / "systems" / "architecture").mkdir(parents=True, exist_ok=True)
+        (snap / ".snapshot.json").write_text("{}", encoding="utf-8")
+        (snap / "systems" / "architecture" / "data-product-contracts-v2.yaml").write_bytes(content)
+        return snap
+
+    def test_store_snapshot_is_checked_against_the_store_pin(self) -> None:
+        content = (self.root / lineage.CONTRACT_RELATIVE).read_bytes()
+        snap = self._snapshot(content)
+        self.fixture["contract"]["canonical"]["store"] = {
+            "space": "architecture-docs", "version": 1, "sha256": lineage.sha256_bytes(content)}
+        self.write_fixture()
+        skipped: list[str] = []
+        with mock.patch.dict(os.environ, {"SOLO_ARCHITECTURE_SNAPSHOT": str(snap)}):
+            self.assertEqual(lineage.verify_sources(self.root, self.book_dev, skipped), [])
+        self.assertEqual(skipped, [])
+
+    def test_store_snapshot_that_drifted_from_the_pin_fails(self) -> None:
+        snap = self._snapshot(b"products: []\n")
+        self.fixture["contract"]["canonical"]["store"] = {"space": "architecture-docs", "version": 1, "sha256": "0" * 64}
+        self.write_fixture()
+        with mock.patch.dict(os.environ, {"SOLO_ARCHITECTURE_SNAPSHOT": str(snap)}):
+            errors = lineage.verify_sources(self.root, self.book_dev, [])
+        self.assertEqual(len(errors), 1)
+        self.assertIn("re-pin", errors[0])
 
     def test_bogus_crypto_evidence_fails(self) -> None:
         crypto = next(p for p in self.fixture["products"] if p["id"] == "crypto")

@@ -399,6 +399,16 @@ def _private_checkouts(book_dev: Path, name: str, source: dict[str, Any]) -> lis
     return found
 
 
+def _store_snapshot(space: str) -> Path | None:
+    """A local snapshot of a hosted-store space, if one exists (known by its .snapshot.json):
+    SOLO_ARCHITECTURE_SNAPSHOT for architecture-docs, else ~/.cache/solo-empire/<space>."""
+    if not space:
+        return None
+    configured = os.environ.get("SOLO_ARCHITECTURE_SNAPSHOT") if space == "architecture-docs" else None
+    folder = Path(configured).expanduser() if configured else Path.home() / ".cache" / "solo-empire" / space
+    return folder.resolve() if (folder / ".snapshot.json").is_file() else None
+
+
 def verify_sources(root: Path, book_dev: Path, skipped: list[str] | None = None) -> list[str]:
     """Read every evidence line at its pinned commit in the checkouts under ``book_dev``.
 
@@ -453,7 +463,24 @@ def verify_sources(root: Path, book_dev: Path, skipped: list[str] | None = None)
             blob = git_show(checkout, source["commit"], canonical.get("path", ""))
             if blob is not None:
                 break
-        if blob is None:
+        store = canonical.get("store") or {}
+        snapshot_blob = None
+        if blob is None and store:
+            # No git history of the private source: a local snapshot of the hosted store
+            # (architecture-docs SPEC-001) is checked against the pinned store version instead.
+            snapshot = _store_snapshot(store.get("space", ""))
+            candidate = snapshot / canonical.get("path", "") if snapshot else None
+            if candidate is not None and candidate.is_file():
+                snapshot_blob = candidate.read_bytes()
+        if blob is None and snapshot_blob is not None:
+            if sha256_bytes(snapshot_blob) != store.get("sha256"):
+                errors.append(
+                    f"store snapshot contract sha256 {sha256_bytes(snapshot_blob)[:12]} != store pin "
+                    f"{str(store.get('sha256'))[:12]} (version {store.get('version')}): re-pin"
+                )
+            elif parse_contract(snapshot_blob.decode("utf-8"))["products"] != parse_contract(vendored.decode("utf-8"))["products"]:
+                errors.append("canonical contract products (store snapshot) differ from the vendored copy")
+        elif blob is None:
             skipped.append(
                 f"canonical contract {canonical['source']}@{source['commit'][:12]} not available; "
                 "skipped only its sha256/products comparison"

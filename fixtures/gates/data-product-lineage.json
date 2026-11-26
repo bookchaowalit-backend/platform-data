@@ -42,7 +42,8 @@
       "source": "architecture-docs",
       "path": "systems/architecture/data-product-contracts-v2.yaml",
       "sha256": "7350615b23f6ffbbbaa227b704fbf94aef7345bf12f4b592602bcb44ec705e9a",
-      "note": "products, endpoints, envelope and policy sections are byte-identical to the vendored copy; only the consumers block (consumer ids/paths) differs"
+      "store": {"space": "architecture-docs", "version": 1, "sha256": "71373a47502e1864f4109c07580a8d39fbfe69af0d4097acc4fed9c83f9efa6d"},
+      "note": "products, endpoints, envelope and policy sections are byte-identical to the vendored copy; only the consumers block (consumer ids/paths) differs. store: the hosted-store version (architecture-docs SPEC-001) checked when only a store snapshot is available; its products equal the vendored copy's (2026-11-26)"
     }
   },
   "sources": {
